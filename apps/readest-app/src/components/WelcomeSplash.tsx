@@ -1,37 +1,47 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 const WELCOME_KEY = 'lotus_welcome_shown';
 
-const WelcomeSplash = () => {
-  const [visible, setVisible] = useState(false);
-  const [leaving, setLeaving] = useState(false);
+function shouldShow(): boolean {
+  try {
+    if (localStorage.getItem(WELCOME_KEY)) return false;
+    localStorage.setItem(WELCOME_KEY, '1');
+    return true;
+  } catch {
+    // 无痕模式下 localStorage 不可用，仅当次显示
+    return true;
+  }
+}
 
-  useEffect(() => {
-    // localStorage：刷新后不再显示；清除浏览器存储可再次显示
-    try {
-      const shown = localStorage.getItem(WELCOME_KEY);
-      if (!shown) {
-        setVisible(true);
-        localStorage.setItem(WELCOME_KEY, '1');
-      }
-    } catch {
-      // 无痕模式下 localStorage 可能抛出异常，降级为只显示一次
-      setVisible(true);
-    }
-  }, []);
+const WelcomeSplash = () => {
+  // 初始值函数：在渲染前同步读取 localStorage，避免 effect 中 setState
+  const [visible, setVisible] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return shouldShow();
+  });
+  const [leaving, setLeaving] = useState(false);
 
   const dismiss = () => {
     setLeaving(true);
     setTimeout(() => setVisible(false), 700);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+      dismiss();
+    }
+  };
+
   if (!visible) return null;
 
   return (
-    <div
+    <button
+      type='button'
       onClick={dismiss}
+      onKeyDown={handleKeyDown}
+      aria-label='关闭欢迎页，进入莲花书院'
       style={{
         position: 'fixed',
         inset: 0,
@@ -40,15 +50,19 @@ const WelcomeSplash = () => {
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
+        border: 'none',
+        padding: 0,
+        width: '100%',
+        height: '100%',
         animation: leaving
           ? 'lotus-fade-out 0.7s ease forwards'
           : 'lotus-fade-in 0.8s ease forwards',
-        // Ink-wash gradient background
         background: 'radial-gradient(ellipse at 60% 40%, #e8f5e9 0%, #c8e6c9 30%, #1b4332 100%)',
       }}
     >
-      {/* Decorative top lotus watermark */}
+      {/* Background lotus watermark */}
       <div
+        aria-hidden='true'
         style={{
           position: 'absolute',
           top: 0,
@@ -60,6 +74,7 @@ const WelcomeSplash = () => {
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           opacity: 0.18,
+          pointerEvents: 'none',
         }}
       />
 
@@ -85,7 +100,9 @@ const WelcomeSplash = () => {
         }}
       >
         {/* Lotus icon */}
-        <div style={{ fontSize: '4rem', lineHeight: 1, userSelect: 'none' }}>🪷</div>
+        <span aria-hidden='true' style={{ fontSize: '4rem', lineHeight: 1 }}>
+          🪷
+        </span>
 
         {/* Main title */}
         <div style={{ textAlign: 'center' }}>
@@ -117,6 +134,7 @@ const WelcomeSplash = () => {
 
         {/* Decorative divider */}
         <div
+          aria-hidden='true'
           style={{
             width: '6rem',
             height: '1px',
@@ -137,7 +155,7 @@ const WelcomeSplash = () => {
         </p>
       </div>
 
-      {/* Keyframe styles injected inline */}
+      {/* Keyframe styles */}
       <style>{`
         @keyframes lotus-fade-in {
           from { opacity: 0; }
@@ -156,7 +174,7 @@ const WelcomeSplash = () => {
           to   { opacity: 0; transform: translateY(-16px) scale(0.97); }
         }
       `}</style>
-    </div>
+    </button>
   );
 };
 
