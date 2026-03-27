@@ -18,6 +18,7 @@ import { getLocale } from '@/utils/misc';
 import { getDirFromUILanguage } from '@/utils/rtl';
 import { DropdownProvider } from '@/context/DropdownContext';
 import { CommandPaletteProvider, CommandPalette } from '@/components/command-palette';
+import WelcomeSplash from '@/components/WelcomeSplash';
 
 const Providers = ({ children }: { children: React.ReactNode }) => {
   const { envConfig, appService } = useEnv();
@@ -72,6 +73,7 @@ const Providers = ({ children }: { children: React.ReactNode }) => {
           <SyncProvider>
             <DropdownProvider>
               <CommandPaletteProvider>
+                <WelcomeSplash />
                 {children}
                 <CommandPalette />
               </CommandPaletteProvider>

@@ -7,11 +7,9 @@ export default function Offline() {
         <Image src='/icon.png' alt='App Icon' width={100} height={100} className='rounded-lg' />
       </div>
 
-      <h1 className='text-2xl font-bold text-gray-800'>Readest</h1>
+      <h1 className='text-2xl font-bold text-gray-800'>莲花书院</h1>
 
-      <p className='mt-2 text-gray-600'>
-        It seems you&apos;re offline. Please check your internet connection and try again.
-      </p>
+      <p className='mt-2 text-gray-600'>您当前处于离线状态，请检查网络连接后重试。</p>
     </div>
   );
 }

@@ -1,10 +1,10 @@
 {
-  "name": "Readest",
-  "short_name": "Readest",
+  "name": "莲花书院",
+  "short_name": "莲花书院",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "description": "Readest is an open-source eBook reader supporting EPUB, PDF, and sync across devices.",
+  "description": "莲花书院是一款开源电子书阅读器，支持 EPUB、PDF 等格式，提供划线、书签、笔记等深度阅读工具，支持多设备同步。",
   "icons": [
     {
       "src": "/icon.png",

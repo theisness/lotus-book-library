@@ -24,6 +24,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { invoke } from '@tauri-apps/api/core';
 import { handleAuthCallback } from '@/helpers/auth';
 import { getUserProfilePlan } from '@/utils/access';
+import { navigateToPublicBookshelf } from '@/utils/nav';
 import { getAppleIdAuth, Scope } from './utils/appleIdAuth';
 import { authWithCustomTab, authWithSafari } from './utils/nativeAuth';
 import WindowButtons from '@/components/WindowButtons';
@@ -239,6 +240,10 @@ export default function AuthPage() {
     }
   };
 
+  const handleBrowsePublicBookshelf = () => {
+    navigateToPublicBookshelf(router);
+  };
+
   const getAuthLocalization = () => {
     return {
       variables: {
@@ -448,6 +453,9 @@ export default function AuthPage() {
         redirectTo={getWebRedirectTo()}
         localization={getAuthLocalization()}
       />
+      <button className='btn btn-outline mt-4 w-full' onClick={handleBrowsePublicBookshelf}>
+        {_('Browse Public Bookshelf')}
+      </button>
     </div>
   );
 }

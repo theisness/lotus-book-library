@@ -5,14 +5,13 @@ import Providers from '@/components/Providers';
 
 import '../styles/globals.css';
 
-const url = 'https://web.readest.com/';
-const title = 'Readest — Where You Read, Digest and Get Insight';
+const url = 'https://book.ssbx.site/';
+const title = '莲花书院 — 阅读、沉思与洞见';
 const description =
-  'Discover Readest, the ultimate online ebook reader for immersive and organized reading. ' +
-  'Enjoy seamless access to your digital library, powerful tools for highlighting, bookmarking, ' +
-  'and note-taking, and support for multiple book views. ' +
-  'Perfect for deep reading, analysis, and understanding. Explore now!';
-const previewImage = 'https://cdn.readest.com/images/open_graph_preview_read_now.png';
+  '莲花书院是一款开源电子书阅读器，支持 EPUB、PDF 等格式，' +
+  '提供划线、书签、笔记等深度阅读工具，支持多设备同步。' +
+  '沉浸式阅读体验，让每一次阅读都留下痕迹。';
+const previewImage = 'https://book.ssbx.site/icon.png';
 
 export const metadata = {
   title,
@@ -43,7 +42,7 @@ export const viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
-      lang='en'
+      lang='zh-CN'
       className={process.env['NEXT_PUBLIC_APP_PLATFORM'] === 'tauri' ? 'edge-to-edge' : ''}
     >
       <head>
@@ -55,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='mobile-web-app-capable' content='yes' />
         <meta name='apple-mobile-web-app-capable' content='yes' />
         <meta name='apple-mobile-web-app-status-bar-style' content='default' />
-        <meta name='apple-mobile-web-app-title' content='Readest' />
+        <meta name='apple-mobile-web-app-title' content='莲花书院' />
         <link rel='apple-touch-icon' sizes='180x180' href='/apple-touch-icon.png' />
         <link rel='icon' href='/favicon.ico' />
         <link rel='manifest' href='/manifest.json' />
@@ -66,7 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta property='og:description' content={description} />
         <meta property='og:image' content={previewImage} />
         <meta name='twitter:card' content='summary_large_image' />
-        <meta property='twitter:domain' content='web.readest.com' />
+        <meta property='twitter:domain' content='book.ssbx.site' />
         <meta property='twitter:url' content={url} />
         <meta name='twitter:title' content={title} />
         <meta name='twitter:description' content={description} />

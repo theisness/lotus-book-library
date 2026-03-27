@@ -107,3 +107,33 @@ GRANT ALL ON public.books TO authenticated;
 GRANT ALL ON public.book_configs TO authenticated;
 GRANT ALL ON public.book_notes TO authenticated;
 GRANT ALL ON public.files TO authenticated;
+
+CREATE TABLE public.public_books (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  owner_user_id uuid NOT NULL,
+  book_hash text NOT NULL,
+  title text NULL,
+  author text NULL,
+  format text NULL,
+  cover_file_key text NULL,
+  book_file_key text NOT NULL,
+  published_at timestamp with time zone NULL DEFAULT now(),
+  updated_at timestamp with time zone NULL DEFAULT now(),
+  deleted_at timestamp with time zone NULL,
+  CONSTRAINT public_books_pkey PRIMARY KEY (id),
+  CONSTRAINT public_books_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES auth.users (id) ON DELETE CASCADE,
+  CONSTRAINT public_books_owner_user_book_key UNIQUE (owner_user_id, book_hash)
+);
+
+CREATE INDEX idx_public_books_deleted_at_published_at ON public.public_books (deleted_at, published_at DESC);
+CREATE INDEX idx_public_books_owner_user_id_deleted_at ON public.public_books (owner_user_id, deleted_at);
+CREATE INDEX idx_public_books_book_hash_deleted_at ON public.public_books (book_hash, deleted_at);
+
+ALTER TABLE public.public_books ENABLE ROW LEVEL SECURITY;
+CREATE POLICY public_books_select ON public.public_books FOR SELECT USING (deleted_at IS NULL);
+CREATE POLICY public_books_insert ON public.public_books FOR INSERT TO authenticated WITH CHECK ((SELECT auth.uid()) = owner_user_id);
+CREATE POLICY public_books_update ON public.public_books FOR UPDATE TO authenticated USING ((SELECT auth.uid()) = owner_user_id);
+CREATE POLICY public_books_delete ON public.public_books FOR DELETE TO authenticated USING ((SELECT auth.uid()) = owner_user_id);
+
+GRANT ALL ON public.public_books TO authenticated;
+GRANT SELECT ON public.public_books TO anon;

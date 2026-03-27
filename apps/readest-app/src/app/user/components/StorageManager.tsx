@@ -15,6 +15,7 @@ import {
   type StorageStats,
   type ListFilesParams,
 } from '@/libs/storage';
+import { listMyPublishedBooks, publishPublicBook, unpublishPublicBook } from '@/libs/publicBooks';
 import { eventDispatcher } from '@/utils/event';
 import { debounce } from '@/utils/debounce';
 import Spinner from '@/components/Spinner';
@@ -38,6 +39,8 @@ const StorageManager = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [expandedBooks, setExpandedBooks] = useState<Set<string>>(new Set());
+  const [publishedBookHashes, setPublishedBookHashes] = useState<Set<string>>(new Set());
+  const [publishingBookHash, setPublishingBookHash] = useState<string | null>(null);
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -80,10 +83,20 @@ const StorageManager = () => {
     }
   }, []);
 
+  const loadPublishedBooks = useCallback(async () => {
+    try {
+      const bookHashes = await listMyPublishedBooks();
+      setPublishedBookHashes(new Set(bookHashes));
+    } catch (error) {
+      console.error('Failed to load published books:', error);
+    }
+  }, []);
+
   useEffect(() => {
     loadFiles();
     loadStats();
-  }, [loadFiles, loadStats]);
+    loadPublishedBooks();
+  }, [loadFiles, loadStats, loadPublishedBooks]);
 
   // Group files by book_hash
   const groupedFiles = React.useMemo(() => {
@@ -259,6 +272,48 @@ const StorageManager = () => {
     return bookFiles.reduce((sum, file) => sum + file.file_size, 0);
   };
 
+  const isPublished = (bookHash: string): boolean => {
+    if (bookHash === 'no-book') return false;
+    return publishedBookHashes.has(bookHash);
+  };
+
+  const handleTogglePublish = async (bookHash: string) => {
+    if (bookHash === 'no-book') return;
+    setPublishingBookHash(bookHash);
+    try {
+      if (isPublished(bookHash)) {
+        await unpublishPublicBook(bookHash);
+        setPublishedBookHashes((prev) => {
+          const next = new Set(prev);
+          next.delete(bookHash);
+          return next;
+        });
+        eventDispatcher.dispatch('toast', {
+          type: 'info',
+          message: _('Removed from public bookshelf'),
+        });
+      } else {
+        await publishPublicBook(bookHash);
+        setPublishedBookHashes((prev) => {
+          const next = new Set(prev);
+          next.add(bookHash);
+          return next;
+        });
+        eventDispatcher.dispatch('toast', {
+          type: 'info',
+          message: _('Published to public bookshelf'),
+        });
+      }
+    } catch (error) {
+      eventDispatcher.dispatch('toast', {
+        type: 'info',
+        message: error instanceof Error ? error.message : _('Failed to update public bookshelf'),
+      });
+    } finally {
+      setPublishingBookHash(null);
+    }
+  };
+
   const isAllSelected = files.length > 0 && selectedFiles.size === files.length;
 
   return (
@@ -385,6 +440,7 @@ const StorageManager = () => {
                 <th className='!ps-0'>{_('File Name')}</th>
                 <th className='hidden sm:table-cell'>{_('Size')}</th>
                 <th className='hidden sm:table-cell'>{_('Created')}</th>
+                <th className='hidden sm:table-cell'>{_('Public')}</th>
               </tr>
             </thead>
             <tbody>
@@ -407,12 +463,15 @@ const StorageManager = () => {
                       <td className='hidden sm:table-cell'>
                         <div className='skeleton h-4 w-20'></div>
                       </td>
+                      <td className='hidden sm:table-cell'>
+                        <div className='skeleton h-4 w-16'></div>
+                      </td>
                     </tr>
                   ))}
                 </>
               ) : groupedFiles.size === 0 ? (
                 <tr>
-                  <td colSpan={4} className='text-center'>
+                  <td colSpan={5} className='text-center'>
                     <div className='text-base-content/60 py-8'>
                       {searchQuery ? _('No files found') : _('No files uploaded yet')}
                     </div>
@@ -478,6 +537,17 @@ const StorageManager = () => {
                         <td className='hidden whitespace-nowrap sm:table-cell'>
                           {formatDate(mainFile.created_at)}
                         </td>
+                        <td className='hidden whitespace-nowrap sm:table-cell'>
+                          <button
+                            className='btn btn-xs'
+                            disabled={
+                              loading || publishingBookHash === bookHash || bookHash === 'no-book'
+                            }
+                            onClick={() => handleTogglePublish(bookHash)}
+                          >
+                            {isPublished(bookHash) ? _('Unpublish') : _('Publish')}
+                          </button>
+                        </td>
                       </tr>
 
                       {/* Expanded files (excluding covers unless expanded) */}
@@ -508,6 +578,7 @@ const StorageManager = () => {
                               {formatFileSize(file.file_size)}
                             </td>
                             <td className='hidden sm:table-cell'>{formatDate(file.created_at)}</td>
+                            <td className='hidden sm:table-cell'></td>
                           </tr>
                         ))}
                     </React.Fragment>
