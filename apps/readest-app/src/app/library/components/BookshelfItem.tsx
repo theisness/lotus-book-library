@@ -17,6 +17,7 @@ import { BOOK_UNGROUPED_ID, BOOK_UNGROUPED_NAME } from '@/services/constants';
 import { FILE_REVEAL_LABELS, FILE_REVEAL_PLATFORMS } from '@/utils/os';
 import { Book, BooksGroup, ReadingStatus } from '@/types/book';
 import { md5Fingerprint } from '@/utils/md5';
+import { isPublicBook, resolvePublicBookUrl } from '../hooks/usePublicBooks';
 import BookItem from './BookItem';
 import GroupItem from './GroupItem';
 
@@ -132,6 +133,31 @@ const BookshelfItem: React.FC<BookshelfItemProps> = ({
   }, []);
 
   const makeBookAvailable = async (book: Book) => {
+    // Public books: resolve real URL and import on-the-fly
+    if (isPublicBook(book)) {
+      const loadingTimeout = setTimeout(() => setLoading(true), 200);
+      try {
+        const realUrl = await resolvePublicBookUrl(book);
+        if (!realUrl) return false;
+        const { library } = useLibraryStore.getState();
+        const imported = await appService?.importBook(realUrl, library);
+        if (!imported) return false;
+        // Navigate using the real imported hash
+        clearTimeout(loadingTimeout);
+        setLoading(false);
+        if (appService?.hasWindow && settings.openBookInNewWindow) {
+          showReaderWindow(appService, [imported.hash]);
+        } else {
+          navigateToReader(router, [imported.hash]);
+        }
+        return null; // null = already navigated
+      } catch {
+        return false;
+      } finally {
+        clearTimeout(loadingTimeout);
+        setLoading(false);
+      }
+    }
     if (book.uploadedAt && !book.downloadedAt) {
       if (await appService?.isBookAvailable(book)) {
         if (!book.downloadedAt || !book.coverDownloadedAt) {
@@ -161,6 +187,7 @@ const BookshelfItem: React.FC<BookshelfItemProps> = ({
         toggleSelection(book.hash);
       } else {
         const available = await makeBookAvailable(book);
+        if (available === null) return; // public book already navigated
         if (!available) return;
         if (appService?.hasWindow && settings.openBookInNewWindow) {
           showReaderWindow(appService, [book.hash]);

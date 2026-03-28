@@ -28,6 +28,8 @@ export async function loadLibraryBooks(
 
 export async function saveLibraryBooks(fs: FileSystem, books: Book[]): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const libraryBooks = books.map(({ coverImageUrl, ...rest }) => rest);
+  const libraryBooks = books
+    .filter((b) => !b.hash.startsWith('public-'))
+    .map(({ coverImageUrl, ...rest }) => rest);
   await safeSaveJSON(fs, getLibraryFilename(), 'Books', libraryBooks);
 }

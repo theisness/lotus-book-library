@@ -48,6 +48,8 @@ async function handleList(req: NextApiRequest, res: NextApiResponse) {
     const page = Math.max(parseInt((req.query['page'] as string) || '1'), 1);
     const pageSize = Math.min(Math.max(parseInt((req.query['pageSize'] as string) || '20'), 1), 50);
     const search = ((req.query['search'] as string) || '').trim();
+    const format = ((req.query['format'] as string) || '').trim().toLowerCase();
+    const ownerUserId = ((req.query['ownerUserId'] as string) || '').trim();
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
@@ -62,6 +64,14 @@ async function handleList(req: NextApiRequest, res: NextApiResponse) {
 
     if (search) {
       query = query.or(`title.ilike.%${search}%,author.ilike.%${search}%`);
+    }
+
+    if (format) {
+      query = query.ilike('format', format);
+    }
+
+    if (ownerUserId) {
+      query = query.eq('owner_user_id', ownerUserId);
     }
 
     const { data, error, count } = await query

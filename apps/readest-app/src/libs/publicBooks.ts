@@ -22,6 +22,8 @@ export interface ListPublicBooksParams {
   page?: number;
   pageSize?: number;
   search?: string;
+  format?: string;
+  ownerUserId?: string;
 }
 
 export interface ListPublicBooksResponse {
@@ -39,6 +41,8 @@ export const listPublicBooks = async (
   if (params?.page) queryParams.set('page', params.page.toString());
   if (params?.pageSize) queryParams.set('pageSize', params.pageSize.toString());
   if (params?.search?.trim()) queryParams.set('search', params.search.trim());
+  if (params?.format) queryParams.set('format', params.format);
+  if (params?.ownerUserId) queryParams.set('ownerUserId', params.ownerUserId);
 
   const url = queryParams.toString()
     ? `${PUBLIC_BOOKS_ENDPOINT}?${queryParams.toString()}`
@@ -52,12 +56,14 @@ export const listPublicBooks = async (
   return await response.json();
 };
 
-export const publishPublicBook = async (bookHash: string): Promise<void> => {
-  await fetchWithAuth(PUBLIC_BOOKS_ENDPOINT, {
+export const publishPublicBook = async (bookHash: string): Promise<PublicBook> => {
+  const response = await fetchWithAuth(PUBLIC_BOOKS_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ bookHash }),
   });
+  const data = await response.json();
+  return data.book;
 };
 
 export const unpublishPublicBook = async (bookHash: string): Promise<void> => {
@@ -70,6 +76,12 @@ export const listMyPublishedBooks = async (): Promise<string[]> => {
   const response = await fetchWithAuth(PUBLIC_BOOKS_MINE_ENDPOINT, { method: 'GET' });
   const data = await response.json();
   return data.bookHashes || [];
+};
+
+export const listMyPublishedBooksDetail = async (): Promise<PublicBook[]> => {
+  const response = await fetchWithAuth(`${PUBLIC_BOOKS_MINE_ENDPOINT}?detail=1`, { method: 'GET' });
+  const data = await response.json();
+  return data.books || [];
 };
 
 export const getPublicBookDownloadUrl = async (id: string): Promise<string> => {

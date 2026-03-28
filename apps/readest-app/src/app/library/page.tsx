@@ -35,6 +35,7 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useTheme } from '@/hooks/useTheme';
 import { useUICSS } from '@/hooks/useUICSS';
 import { useDemoBooks } from './hooks/useDemoBooks';
+import { usePublicBooks, PUBLIC_BOOKS_GROUP_NAME } from './hooks/usePublicBooks';
 import { useBooksSync } from './hooks/useBooksSync';
 import { useBookDataStore } from '@/store/bookDataStore';
 import { useTransferStore } from '@/store/transferStore';
@@ -133,6 +134,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   const iconSize = useResponsiveSize(18);
   const viewSettings = settings.globalViewSettings;
   const demoBooks = useDemoBooks();
+  const publicBooks = usePublicBooks(!!(token && user));
   const osRef = useRef<OverlayScrollbarsComponentRef>(null);
   const containerRef: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -491,6 +493,20 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoBooks, libraryLoaded]);
+
+  useEffect(() => {
+    if (publicBooks.length === 0) return;
+    const { library: current } = useLibraryStore.getState();
+    const withoutPublic = current.filter((b) => !b.hash.startsWith('public-'));
+    const merged = [...withoutPublic];
+    for (const pub of publicBooks) {
+      const idx = merged.findIndex((b) => b.hash === pub.hash);
+      if (idx === -1) merged.push(pub);
+      else merged[idx] = pub;
+    }
+    setLibrary(merged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicBooks]);
 
   const importBooks = async (files: SelectedFile[], groupId?: string) => {
     setLoading(true);
