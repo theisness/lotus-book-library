@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { useCallback } from 'react';
 import { useEnv } from '@/context/EnvContext';
 import { useLibraryStore } from '@/store/libraryStore';
+import { useBookDataStore } from '@/store/bookDataStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAppRouter } from '@/hooks/useAppRouter';
@@ -125,7 +126,7 @@ const BookshelfItem: React.FC<BookshelfItemProps> = ({
   const router = useAppRouter();
   const { envConfig, appService } = useEnv();
   const { settings } = useSettingsStore();
-  const { updateBook } = useLibraryStore();
+  const { updateBook, setLibrary } = useLibraryStore();
 
   const showBookDetailsModal = useCallback(async (book: Book) => {
     handleShowDetailsBook(book);
@@ -139,16 +140,43 @@ const BookshelfItem: React.FC<BookshelfItemProps> = ({
       try {
         const realUrl = await resolvePublicBookUrl(book);
         if (!realUrl) return false;
+        // Presigned URLs are signed for GET only; fetching as a Blob avoids the
+        // HEAD request that RemoteFile.open() would otherwise send.
+        const dlResponse = await fetch(realUrl);
+        if (!dlResponse.ok) throw new Error(`Failed to download book: ${dlResponse.status}`);
+        const blob = await dlResponse.blob();
+        const ext = book.format?.toLowerCase() || 'epub';
+        const bookFile = new File([blob], `${book.hash}.${ext}`, { type: blob.type });
         const { library } = useLibraryStore.getState();
-        const imported = await appService?.importBook(realUrl, library);
+        // saveBook=false: don't permanently add to the personal library
+        const imported = await appService?.importBook(bookFile, library, false);
         if (!imported) return false;
+        // importBook mutates the passed library array in-place; publish a new
+        // array reference to Zustand so readerStore can find the imported hash.
+        // Do not persist it, otherwise the library count grows after every open.
+        setLibrary([...library]);
+        useBookDataStore.setState((state) => ({
+          booksData: {
+            ...state.booksData,
+            [imported.hash]: {
+              id: imported.hash,
+              book: imported,
+              file: bookFile,
+              config: state.booksData[imported.hash]?.config || null,
+              bookDoc: state.booksData[imported.hash]?.bookDoc || null,
+              isFixedLayout: state.booksData[imported.hash]?.isFixedLayout || false,
+            },
+          },
+        }));
         // Navigate using the real imported hash
         clearTimeout(loadingTimeout);
         setLoading(false);
         if (appService?.hasWindow && settings.openBookInNewWindow) {
           showReaderWindow(appService, [imported.hash]);
         } else {
-          navigateToReader(router, [imported.hash]);
+          setTimeout(() => {
+            navigateToReader(router, [imported.hash]);
+          }, 0);
         }
         return null; // null = already navigated
       } catch {
@@ -286,8 +314,10 @@ const BookshelfItem: React.FC<BookshelfItemProps> = ({
       },
     });
     const menu = await Menu.new();
-    menu.append(selectBookMenuItem);
-    menu.append(groupBooksMenuItem);
+    if (!isPublicBook(book)) {
+      menu.append(selectBookMenuItem);
+      menu.append(groupBooksMenuItem);
+    }
     if (book.readingStatus === 'finished') {
       menu.append(markAsUnreadMenuItem);
     } else {
@@ -298,14 +328,16 @@ const BookshelfItem: React.FC<BookshelfItemProps> = ({
       menu.append(clearStatusMenuItem);
     }
     menu.append(showBookDetailsMenuItem);
-    menu.append(showBookInFinderMenuItem);
-    if (book.uploadedAt && !book.downloadedAt) {
-      menu.append(downloadBookMenuItem);
+    if (!isPublicBook(book)) {
+      menu.append(showBookInFinderMenuItem);
+      if (book.uploadedAt && !book.downloadedAt) {
+        menu.append(downloadBookMenuItem);
+      }
+      if (!book.uploadedAt && book.downloadedAt) {
+        menu.append(uploadBookMenuItem);
+      }
+      menu.append(deleteBookMenuItem);
     }
-    if (!book.uploadedAt && book.downloadedAt) {
-      menu.append(uploadBookMenuItem);
-    }
-    menu.append(deleteBookMenuItem);
     menu.popup();
   };
 
@@ -344,6 +376,7 @@ const BookshelfItem: React.FC<BookshelfItemProps> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleSelectItem = useCallback(
     throttle(() => {
+      if ('format' in item && isPublicBook(item as Book)) return;
       if (!isSelectMode) {
         handleSetSelectMode(true);
       }

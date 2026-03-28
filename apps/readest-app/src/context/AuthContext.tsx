@@ -4,12 +4,14 @@ import React, { createContext, useState, useContext, ReactNode, useEffect } from
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/utils/supabase';
 import posthog from 'posthog-js';
+import { useLibraryStore } from '@/store/libraryStore';
+import { useBookDataStore } from '@/store/bookDataStore';
 
 interface AuthContextType {
   token: string | null;
   user: User | null;
   login: (token: string, user: User) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   refresh: () => void;
 }
 
@@ -30,6 +32,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return null;
   });
 
+  const clearAuthScopedState = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+    setToken(null);
+    setUser(null);
+    useLibraryStore.setState({
+      library: [],
+      libraryLoaded: false,
+      currentBookshelf: [],
+      selectedBooks: new Set(),
+      groups: {},
+      isSyncing: false,
+      syncProgress: 0,
+    });
+    useBookDataStore.setState({ booksData: {} });
+  };
+
   useEffect(() => {
     const syncSession = (
       session: { access_token: string; refresh_token: string; user: User } | null,
@@ -44,11 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setToken(access_token);
         setUser(user);
       } else {
-        localStorage.removeItem('token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        setToken(null);
-        setUser(null);
+        clearAuthScopedState();
       }
     };
     const refreshSession = async () => {
@@ -79,15 +95,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     console.log('Logging out');
+    clearAuthScopedState();
     try {
       await supabase.auth.refreshSession();
     } catch {
     } finally {
       await supabase.auth.signOut();
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setToken(null);
-      setUser(null);
+      clearAuthScopedState();
     }
   };
 

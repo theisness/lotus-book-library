@@ -11,8 +11,8 @@ export const useUserActions = () => {
   const { envConfig } = useEnv();
   const { logout } = useAuth();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     saveSysSettings(envConfig, 'keepLogin', false);
     navigateToLibrary(router);
   };
@@ -28,7 +28,7 @@ export const useUserActions = () => {
   const handleConfirmDelete = async (errorMessage: string) => {
     try {
       await deleteUser();
-      handleLogout();
+      await handleLogout();
     } catch (error) {
       console.error('Error deleting user:', error);
       eventDispatcher.dispatch('toast', {

@@ -21,14 +21,32 @@ export const isMacPlatform = () =>
 export const getCommandPaletteShortcut = () => (isMacPlatform() ? '⌘⇧P' : 'Ctrl+Shift+P');
 
 const isWebDevMode = () => process.env['NODE_ENV'] === 'development' && isWebAppPlatform();
+const trimTrailingSlash = (value: string) => value.replace(/\/$/, '');
+const getConfiguredBackendBaseUrl = () => {
+  const backendBaseUrl = process.env['NEXT_PUBLIC_BACKEND_BASE_URL'];
+  return backendBaseUrl ? trimTrailingSlash(backendBaseUrl) : undefined;
+};
+const getConfiguredNodeBackendBaseUrl = () => {
+  const nodeBackendBaseUrl = process.env['NEXT_PUBLIC_NODE_BACKEND_BASE_URL'];
+  if (nodeBackendBaseUrl) return trimTrailingSlash(nodeBackendBaseUrl);
+  return getConfiguredBackendBaseUrl();
+};
 
 // Dev API only in development mode and web platform
 // with command `pnpm dev-web`
 // for production build or tauri app use the production Web API
-export const getAPIBaseUrl = () => (isWebDevMode() ? '/api' : `${getBaseUrl()}/api`);
+export const getAPIBaseUrl = () => {
+  const backendBaseUrl = getConfiguredBackendBaseUrl();
+  if (backendBaseUrl) return `${backendBaseUrl}/api`;
+  return isWebDevMode() ? '/api' : `${getBaseUrl()}/api`;
+};
 
 // For Node.js API that currently not supported in some edge runtimes
-export const getNodeAPIBaseUrl = () => (isWebDevMode() ? '/api' : `${getNodeBaseUrl()}/api`);
+export const getNodeAPIBaseUrl = () => {
+  const backendBaseUrl = getConfiguredNodeBackendBaseUrl();
+  if (backendBaseUrl) return `${backendBaseUrl}/api`;
+  return isWebDevMode() ? '/api' : `${getNodeBaseUrl()}/api`;
+};
 
 export interface EnvConfigType {
   getAppService: () => Promise<AppService>;

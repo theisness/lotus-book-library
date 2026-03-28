@@ -190,8 +190,28 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < records.length; i += BATCH_SIZE) {
       const batch = records.slice(i, i + BATCH_SIZE);
 
+      const dedupedBatchMap = new Map<string, BookDataRecord>();
+      for (const record of batch) {
+        const key = primaryKeys.map((pk) => String(record[pk] ?? '')).join('|');
+        const existing = dedupedBatchMap.get(key);
+        if (!existing) {
+          dedupedBatchMap.set(key, record);
+          continue;
+        }
+
+        const existingUpdatedAt = existing.updated_at ?? 0;
+        const recordUpdatedAt = record.updated_at ?? 0;
+        const existingDeletedAt = existing.deleted_at ?? 0;
+        const recordDeletedAt = record.deleted_at ?? 0;
+
+        if (recordDeletedAt > existingDeletedAt || recordUpdatedAt >= existingUpdatedAt) {
+          dedupedBatchMap.set(key, record);
+        }
+      }
+      const dedupedBatch = Array.from(dedupedBatchMap.values());
+
       // Transform all records to DB format
-      const dbRecords = batch.map((rec) => {
+      const dbRecords = dedupedBatch.map((rec) => {
         const dbRec = transformsToDB[table](rec, user.id);
         rec.user_id = user.id;
         rec.book_hash = dbRec.book_hash;

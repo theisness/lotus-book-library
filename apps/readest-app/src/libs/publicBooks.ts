@@ -67,9 +67,16 @@ export const publishPublicBook = async (bookHash: string): Promise<PublicBook> =
 };
 
 export const unpublishPublicBook = async (bookHash: string): Promise<void> => {
-  await fetchWithAuth(`${PUBLIC_BOOKS_ENDPOINT}?bookHash=${encodeURIComponent(bookHash)}`, {
-    method: 'DELETE',
-  });
+  const response = await fetchWithAuth(
+    `${PUBLIC_BOOKS_ENDPOINT}?bookHash=${encodeURIComponent(bookHash)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.error || 'Failed to unpublish public book');
+  }
 };
 
 export const listMyPublishedBooks = async (): Promise<string[]> => {

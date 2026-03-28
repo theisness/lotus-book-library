@@ -368,6 +368,15 @@ const StorageManager = () => {
         </div>
       )}
 
+      <div className='bg-base-100 border-base-300 rounded-lg border p-4'>
+        <h3 className='text-base-content mb-2 text-lg font-semibold'>{_('Public Bookshelf')}</h3>
+        <p className='text-base-content/70 text-sm'>
+          {_(
+            'Publish or unpublish your uploaded books to manage what appears in the public bookshelf.',
+          )}
+        </p>
+      </div>
+
       {/* Files Section */}
       <div className='bg-base-100 border-base-300 rounded-lg border'>
         <div className='border-base-300 flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-center sm:justify-between'>
@@ -440,7 +449,7 @@ const StorageManager = () => {
                 <th className='!ps-0'>{_('File Name')}</th>
                 <th className='hidden sm:table-cell'>{_('Size')}</th>
                 <th className='hidden sm:table-cell'>{_('Created')}</th>
-                <th className='hidden sm:table-cell'>{_('Public')}</th>
+                <th className='hidden sm:table-cell'>{_('Public Bookshelf')}</th>
               </tr>
             </thead>
             <tbody>

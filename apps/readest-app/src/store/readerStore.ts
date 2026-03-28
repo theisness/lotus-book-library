@@ -148,15 +148,17 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
       const appService = await envConfig.getAppService();
       const { settings } = useSettingsStore.getState();
       const { library } = useLibraryStore.getState();
-      const book = library.find((b) => b.hash === id);
+      const book = library.find((b) => b.hash === id) || bookData?.book;
       if (!book) {
         throw new Error('Book not found');
       }
       let bookDoc = bookData?.bookDoc;
       let file = bookData?.file;
-      if (!bookDoc || !file || reload) {
+      if (!file) {
         const content = (await appService.loadBookContent(book)) as BookContent;
         file = content.file;
+      }
+      if (!bookDoc || reload) {
         console.log('Loading book', key);
         const doc = await new DocumentLoader(file).open();
         bookDoc = doc.book;

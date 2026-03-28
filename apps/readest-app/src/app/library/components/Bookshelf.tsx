@@ -42,6 +42,7 @@ import SetStatusAlert from './SetStatusAlert';
 
 interface BookshelfProps {
   libraryBooks: Book[];
+  canImportBooks: boolean;
   isSelectMode: boolean;
   isSelectAll: boolean;
   isSelectNone: boolean;
@@ -61,6 +62,7 @@ interface BookshelfProps {
 
 const Bookshelf: React.FC<BookshelfProps> = ({
   libraryBooks,
+  canImportBooks,
   isSelectMode,
   isSelectAll,
   isSelectNone,
@@ -238,7 +240,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
     if (isImportingBook.current) return;
     isImportingBook.current = true;
 
-    if (importBookUrl && appService) {
+    if (importBookUrl && appService && canImportBooks) {
       const importBook = async () => {
         console.log('Importing book from URL:', importBookUrl);
         const book = await appService.importBook(importBookUrl, libraryBooks);
@@ -251,7 +253,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
       importBook();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [importBookUrl, appService]);
+  }, [canImportBooks, importBookUrl, appService]);
 
   useEffect(() => {
     setCurrentBookshelf(currentBookshelfItems);
@@ -435,7 +437,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
             }
           />
         ))}
-        {viewMode === 'grid' && currentBookshelfItems.length > 0 && (
+        {canImportBooks && viewMode === 'grid' && currentBookshelfItems.length > 0 && (
           <div
             className={clsx('bookshelf-import-item mx-0 my-2 sm:mx-4 sm:my-4')}
             style={

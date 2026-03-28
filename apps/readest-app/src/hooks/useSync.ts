@@ -12,6 +12,7 @@ import { DBBook, DBBookConfig, DBBookNote } from '@/types/records';
 import { Book, BookConfig, BookDataRecord, BookNote } from '@/types/book';
 import { navigateToLogin } from '@/utils/nav';
 import { useReaderStore } from '@/store/readerStore';
+import { useAuth } from '@/context/AuthContext';
 
 const transformsFromDB = {
   books: transformBookFromDB,
@@ -35,9 +36,16 @@ const computeMaxTimestamp = (records: BookDataRecord[]): number => {
 };
 
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const hasLiveAuthSession = () => {
+  if (typeof window === 'undefined') return true;
+  return !!localStorage.getItem('token') && !!localStorage.getItem('user');
+};
+
 export function useSync(bookKey?: string) {
   const router = useRouter();
   const { envConfig } = useEnv();
+  useAuth();
   const { settings, setSettings, saveSettings } = useSettingsStore();
   const { getConfig, setConfig } = useBookDataStore();
   const { setIsSyncing } = useReaderStore();
@@ -142,8 +150,11 @@ export function useSync(bookKey?: string) {
       }
       return records?.filter((rec) => !rec.deleted_at).length || 0;
     } catch (err: unknown) {
-      console.error(err);
       if (err instanceof Error) {
+        if (err.message.includes('Not authenticated') && !hasLiveAuthSession()) {
+          return 0;
+        }
+        console.error(err);
         if (err.message.includes('Not authenticated') && settings.keepLogin) {
           settings.keepLogin = false;
           setSettings(settings);
@@ -151,6 +162,7 @@ export function useSync(bookKey?: string) {
         }
         setSyncError(err.message || `Error pulling ${type}`);
       } else {
+        console.error(err);
         setSyncError(`Error pulling ${type}`);
       }
       return 0;
@@ -168,10 +180,14 @@ export function useSync(bookKey?: string) {
       const result = await syncClient.pushChanges(payload);
       setSyncResult(result);
     } catch (err: unknown) {
-      console.error(err);
       if (err instanceof Error) {
+        if (err.message.includes('Not authenticated') && !hasLiveAuthSession()) {
+          return;
+        }
+        console.error(err);
         setSyncError(err.message || 'Error pushing changes');
       } else {
+        console.error(err);
         setSyncError('Error pushing changes');
       }
     } finally {
@@ -183,7 +199,22 @@ export function useSync(bookKey?: string) {
     async (books?: Book[], op: SyncOp = 'both', since?: number) => {
       if (!lastSyncedAtInited) return;
       if ((op === 'push' || op === 'both') && books?.length) {
-        await pushChanges({ books });
+        const dedupedBooks = Array.from(
+          books
+            .reduce((map, book) => {
+              const existing = map.get(book.hash);
+              if (
+                !existing ||
+                (book.deletedAt ?? 0) > (existing.deletedAt ?? 0) ||
+                book.updatedAt >= existing.updatedAt
+              ) {
+                map.set(book.hash, book);
+              }
+              return map;
+            }, new Map<string, Book>())
+            .values(),
+        );
+        await pushChanges({ books: dedupedBooks });
       }
       if (op === 'pull' || op === 'both') {
         return await pullChanges(

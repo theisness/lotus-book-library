@@ -25,6 +25,7 @@ import ViewMenu from './ViewMenu';
 interface LibraryHeaderProps {
   isSelectMode: boolean;
   isSelectAll: boolean;
+  canImportBooks: boolean;
   onPullLibrary: () => void;
   onImportBooksFromFiles: () => void;
   onImportBooksFromDirectory?: () => void;
@@ -37,6 +38,7 @@ interface LibraryHeaderProps {
 const LibraryHeader: React.FC<LibraryHeaderProps> = ({
   isSelectMode,
   isSelectAll,
+  canImportBooks,
   onPullLibrary,
   onImportBooksFromFiles,
   onImportBooksFromDirectory,
@@ -150,20 +152,22 @@ const LibraryHeader: React.FC<LibraryHeaderProps> = ({
               </button>
             )}
             <span className='bg-base-content/50 mx-2 h-4 w-[0.5px]'></span>
-            <Dropdown
-              label={_('Import Books')}
-              className={clsx(
-                'exclude-title-bar-mousedown dropdown-bottom dropdown-center cursor-pointer',
-              )}
-              buttonClassName='p-0 h-6 min-h-6 w-6 flex touch-target items-center justify-center !bg-transparent'
-              toggleButton={<PiPlus role='none' className='m-0.5 h-5 w-5' />}
-            >
-              <ImportMenu
-                onImportBooksFromFiles={onImportBooksFromFiles}
-                onImportBooksFromDirectory={onImportBooksFromDirectory}
-                onOpenCatalogManager={onOpenCatalogManager}
-              />
-            </Dropdown>
+            {canImportBooks && (
+              <Dropdown
+                label={_('Import Books')}
+                className={clsx(
+                  'exclude-title-bar-mousedown dropdown-bottom dropdown-center cursor-pointer',
+                )}
+                buttonClassName='p-0 h-6 min-h-6 w-6 flex touch-target items-center justify-center !bg-transparent'
+                toggleButton={<PiPlus role='none' className='m-0.5 h-5 w-5' />}
+              >
+                <ImportMenu
+                  onImportBooksFromFiles={onImportBooksFromFiles}
+                  onImportBooksFromDirectory={onImportBooksFromDirectory}
+                  onOpenCatalogManager={onOpenCatalogManager}
+                />
+              </Dropdown>
+            )}
             {isMobile ? null : (
               <button
                 onClick={onToggleSelectMode}

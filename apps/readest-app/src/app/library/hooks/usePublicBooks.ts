@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Book } from '@/types/book';
 import { listPublicBooks, getPublicBookDownloadUrl, type PublicBook } from '@/libs/publicBooks';
 
@@ -11,50 +11,55 @@ const publicBookToBook = (pub: PublicBook, isLoggedIn: boolean): Book => ({
   title: pub.title || '未知书名',
   author: pub.author || '',
   coverImageUrl: pub.coverUrl || null,
-  // Logged-in users see a "公共书架" group; guests see books ungrouped
   groupName: isLoggedIn ? PUBLIC_BOOKS_GROUP_NAME : undefined,
   groupId: undefined,
-  url: `__public__${pub.id}`,
+  url: `__public__${pub.id}:${pub.book_hash}`,
   createdAt: new Date(pub.published_at).getTime(),
   updatedAt: new Date(pub.published_at).getTime(),
   uploadedAt: null,
   downloadedAt: null,
 });
 
-export const usePublicBooks = (isLoggedIn: boolean) => {
+export const usePublicBooks = (isLoggedIn: boolean): { books: Book[]; loading: boolean } => {
   const [publicBooks, setPublicBooks] = useState<Book[]>([]);
-  const loaded = useRef(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (loaded.current) return;
-    loaded.current = true;
+    let cancelled = false;
 
     const load = async () => {
+      setLoading(true);
       try {
-        // Load first two pages (up to 40 books) for the library view
-        const [page1, page2] = await Promise.allSettled([
-          listPublicBooks({ page: 1, pageSize: 20 }),
-          listPublicBooks({ page: 2, pageSize: 20 }),
-        ]);
-        const books: PublicBook[] = [];
-        if (page1.status === 'fulfilled') books.push(...page1.value.books);
-        if (page2.status === 'fulfilled') books.push(...page2.value.books);
+        const page1Result = await listPublicBooks({ page: 1, pageSize: 20 });
+        if (cancelled) return;
+        const books: PublicBook[] = [...page1Result.books];
+        if (page1Result.totalPages > 1) {
+          const page2Result = await listPublicBooks({ page: 2, pageSize: 20 }).catch(() => null);
+          if (cancelled) return;
+          if (page2Result) books.push(...page2Result.books);
+        }
         setPublicBooks(books.map((pub) => publicBookToBook(pub, isLoggedIn)));
       } catch {
         // silently fail — public books are optional
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
     load();
+    return () => {
+      cancelled = true;
+    };
   }, [isLoggedIn]);
 
-  return publicBooks;
+  return { books: publicBooks, loading };
 };
 
 // Given a book whose url starts with "__public__", resolve the real download URL.
 export const resolvePublicBookUrl = async (book: Book): Promise<string | null> => {
   if (!book.url?.startsWith('__public__')) return null;
-  const id = book.url.replace('__public__', '');
+  const [id] = book.url.replace('__public__', '').split(':');
+  if (!id) return null;
   try {
     return await getPublicBookDownloadUrl(id);
   } catch {

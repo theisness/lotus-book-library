@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useEnv } from '@/context/EnvContext';
+import { useAuth } from '@/context/AuthContext';
 import { impactFeedback } from '@tauri-apps/plugin-haptics';
 import { eventDispatcher } from '@/utils/event';
 import { SelectedFile } from '@/hooks/useFileSelector';
@@ -15,9 +16,12 @@ export const useDragDropImport = () => {
   const group = searchParams?.get('group') || '';
 
   const { appService } = useEnv();
+  const { token, user } = useAuth();
   const [isDragging, setIsDragging] = useState(false);
+  const canImportBooks = !!(token && user);
 
   const handleDroppedFiles = async (files: File[] | string[]) => {
+    if (!canImportBooks) return;
     if (files.length === 0) return;
     const supportedFiles = files.filter((file) => {
       let fileExt;
@@ -53,18 +57,21 @@ export const useDragDropImport = () => {
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement> | DragEvent) => {
+    if (!canImportBooks) return;
     event.preventDefault();
     event.stopPropagation();
     setIsDragging(true);
   };
 
   const handleDragLeave = (event: React.DragEvent<HTMLDivElement> | DragEvent) => {
+    if (!canImportBooks) return;
     event.preventDefault();
     event.stopPropagation();
     setIsDragging(false);
   };
 
   const handleDrop = async (event: React.DragEvent<HTMLDivElement> | DragEvent) => {
+    if (!canImportBooks) return;
     event.preventDefault();
     event.stopPropagation();
     setIsDragging(false);
@@ -76,6 +83,10 @@ export const useDragDropImport = () => {
   };
 
   useEffect(() => {
+    if (!canImportBooks) {
+      setIsDragging(false);
+      return;
+    }
     const libraryPage = document.querySelector('.library-page');
     if (!appService?.isMobile) {
       libraryPage?.addEventListener('dragover', handleDragOver as unknown as EventListener);
@@ -107,7 +118,7 @@ export const useDragDropImport = () => {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group]);
+  }, [appService?.isMobile, canImportBooks, group]);
 
   return { isDragging };
 };

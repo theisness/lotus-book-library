@@ -5,6 +5,8 @@ import { getOSPlatform, isValidURL } from '@/utils/misc';
 import { RemoteFile } from '@/utils/file';
 import { isPWA } from './environment';
 import { BaseAppService } from './appService';
+import { listMyBooks } from '@/libs/myBooks';
+import { getCoverFilename, getLocalBookFilename } from '@/utils/book';
 import {
   DATA_SUBDIR,
   LOCAL_BOOKS_SUBDIR,
@@ -285,10 +287,18 @@ export class WebAppService extends BaseAppService {
   override appPlatform = 'web' as AppPlatform;
   override hasSafeAreaInset = isPWA();
 
+  private async clearLegacyLibraryIndex() {
+    await Promise.allSettled([
+      this.fs.removeFile('library.json', 'Books'),
+      this.fs.removeFile('library.json.bak', 'Books'),
+    ]);
+  }
+
   override async init() {
     await this.loadSettings();
     await this.prepareBooksDir();
     await this.runMigrations();
+    await this.clearLegacyLibraryIndex();
   }
 
   override async runMigrations() {
@@ -364,5 +374,32 @@ export class WebAppService extends BaseAppService {
     const { getMigrations } = await import('./database/migrations');
     await migrate(db, getMigrations(schema));
     return db;
+  }
+
+  override async loadLibraryBooks() {
+    let books = await listMyBooks().catch(() => []);
+    books = await Promise.all(
+      books.map(async (book) => {
+        const [bookExists, coverExists] = await Promise.all([
+          this.fs.exists(getLocalBookFilename(book), 'Books').catch(() => false),
+          this.fs.exists(getCoverFilename(book), 'Books').catch(() => false),
+        ]);
+        if (bookExists) {
+          book.downloadedAt = book.downloadedAt || Date.now();
+        }
+        if (coverExists) {
+          book.coverDownloadedAt = book.coverDownloadedAt || Date.now();
+          book.coverImageUrl = await this.generateCoverImageUrl(book).catch(
+            () => book.coverImageUrl,
+          );
+        }
+        return book;
+      }),
+    );
+    return books;
+  }
+
+  override async saveLibraryBooks(_books: unknown[]): Promise<void> {
+    return;
   }
 }

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { PiUserCircle, PiUserCircleCheck, PiGear } from 'react-icons/pi';
 import { PiSun, PiMoon } from 'react-icons/pi';
 import { TbSunMoon } from 'react-icons/tb';
-import { MdCloudSync, MdPublic, MdSync, MdSyncProblem } from 'react-icons/md';
+import { MdCloudSync, MdSync, MdSyncProblem } from 'react-icons/md';
 
 import { invoke, PermissionState } from '@tauri-apps/api/core';
 import { isTauriAppPlatform, isWebAppPlatform } from '@/services/environment';
@@ -19,7 +19,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useResponsiveSize } from '@/hooks/useResponsiveSize';
 import { useTransferQueue } from '@/hooks/useTransferQueue';
-import { navigateToLogin, navigateToProfile, navigateToPublicBookshelf } from '@/utils/nav';
+import { navigateToLogin, navigateToProfile } from '@/utils/nav';
 import { tauriHandleSetAlwaysOnTop, tauriHandleToggleFullScreen } from '@/utils/window';
 import { optInTelemetry, optOutTelemetry } from '@/utils/telemetry';
 import { setAboutDialogVisible } from '@/components/AboutWindow';
@@ -94,11 +94,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
 
   const handleUserProfile = () => {
     navigateToProfile(router);
-    setIsDropdownOpen?.(false);
-  };
-
-  const handlePublicBookshelf = () => {
-    navigateToPublicBookshelf(router);
     setIsDropdownOpen?.(false);
   };
 
@@ -201,7 +196,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
     setIsRefreshingMetadata(true);
     setRefreshMetadataProgress(_('Loading library...'));
     try {
-      const books = await appService.loadLibraryBooks();
+      const books = useLibraryStore.getState().library;
       const activeBooks = books.filter((b) => !b.deletedAt);
       let refreshed = 0;
       for (let i = 0; i < activeBooks.length; i++) {
@@ -214,8 +209,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
           // Skip books whose files can't be opened
         }
       }
-      setLibrary(books);
-      await appService.saveLibraryBooks(books);
+      setLibrary([...books]);
       setRefreshMetadataProgress(_('{{count}} books refreshed', { count: refreshed }));
       onPullLibrary(true);
       setTimeout(() => {
@@ -351,8 +345,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
       ) : (
         <MenuItem label={_('Sign In')} Icon={PiUserCircle} onClick={handleUserLogin}></MenuItem>
       )}
-      <MenuItem label={_('Public Bookshelf')} Icon={MdPublic} onClick={handlePublicBookshelf} />
-
       <MenuItem
         label={_('Auto Upload Books to Cloud')}
         toggled={isAutoUpload}

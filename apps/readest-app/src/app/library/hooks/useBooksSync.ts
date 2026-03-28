@@ -24,9 +24,10 @@ export const useBooksSync = () => {
     const library = useLibraryStore.getState().library;
     const newBooks = library.filter(
       (book) =>
-        !book.syncedAt ||
-        lastSyncedAtBooks < book.updatedAt ||
-        lastSyncedAtBooks < (book.deletedAt ?? 0),
+        !book.hash.startsWith('public-') &&
+        (!book.syncedAt ||
+          lastSyncedAtBooks < book.updatedAt ||
+          lastSyncedAtBooks < (book.deletedAt ?? 0)),
     );
     return {
       books: newBooks,
@@ -101,16 +102,21 @@ export const useBooksSync = () => {
   const updateLibrary = useCallback(async () => {
     if (!syncedBooks?.length) return;
 
+    const syncedPersonalBooks = syncedBooks.filter((book) => !book.hash.startsWith('public-'));
+    if (!syncedPersonalBooks.length) return;
+
     // Process old books first so that when we update the library the order is preserved
-    syncedBooks.sort((a, b) => a.updatedAt - b.updatedAt);
-    const bookHashesInSynced = new Set(syncedBooks.map((book) => book.hash));
-    const oldBooks = library.filter((book) => bookHashesInSynced.has(book.hash));
+    syncedPersonalBooks.sort((a, b) => a.updatedAt - b.updatedAt);
+    const bookHashesInSynced = new Set(syncedPersonalBooks.map((book) => book.hash));
+    // Use getState() to avoid stale closure over the library React state
+    const currentLibrary = useLibraryStore.getState().library;
+    const oldBooks = currentLibrary.filter((book) => bookHashesInSynced.has(book.hash));
     const oldBooksNeedsDownload = oldBooks.filter((book) => {
       return !book.deletedAt && book.uploadedAt && !book.coverDownloadedAt;
     });
 
     const processOldBook = async (oldBook: Book) => {
-      const matchingBook = syncedBooks.find((newBook) => newBook.hash === oldBook.hash);
+      const matchingBook = syncedPersonalBooks.find((newBook) => newBook.hash === oldBook.hash);
       if (matchingBook) {
         if (!matchingBook.deletedAt && matchingBook.uploadedAt && !oldBook.coverDownloadedAt) {
           oldBook.coverImageUrl = await appService?.generateCoverImageUrl(oldBook);
@@ -130,12 +136,12 @@ export const useBooksSync = () => {
       await appService?.downloadBookCovers(batch);
     }
 
-    const updatedLibrary = await Promise.all(library.map(processOldBook));
+    const updatedLibrary = await Promise.all(currentLibrary.map(processOldBook));
     setLibrary(updatedLibrary);
-    appService?.saveLibraryBooks(updatedLibrary);
+    appService?.saveLibraryBooks(updatedLibrary.filter((b) => !b.hash.startsWith('public-')));
 
     const bookHashesInLibrary = new Set(updatedLibrary.map((book) => book.hash));
-    const newBooks = syncedBooks.filter(
+    const newBooks = syncedPersonalBooks.filter(
       (newBook) =>
         !bookHashesInLibrary.has(newBook.hash) && newBook.uploadedAt && !newBook.deletedAt,
     );
@@ -158,7 +164,7 @@ export const useBooksSync = () => {
         const progress = Math.min((i + batchSize) / newBooks.length, 1);
         setSyncProgress(progress);
         setLibrary([...updatedLibrary]);
-        appService?.saveLibraryBooks(updatedLibrary);
+        appService?.saveLibraryBooks(updatedLibrary.filter((b) => !b.hash.startsWith('public-')));
       }
     } catch (err) {
       console.error('Error updating new books:', err);

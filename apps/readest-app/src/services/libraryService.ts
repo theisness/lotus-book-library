@@ -13,7 +13,8 @@ export async function loadLibraryBooks(
     await fs.createDir('', 'Books', true);
   }
 
-  const books = await safeLoadJSON<Book[]>(fs, libraryFilename, 'Books', []);
+  const allBooks = await safeLoadJSON<Book[]>(fs, libraryFilename, 'Books', []);
+  const books = allBooks.filter((b) => !b.url?.startsWith('https://cdn.readest.com/books/'));
 
   await Promise.all(
     books.map(async (book) => {
@@ -30,6 +31,7 @@ export async function saveLibraryBooks(fs: FileSystem, books: Book[]): Promise<v
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const libraryBooks = books
     .filter((b) => !b.hash.startsWith('public-'))
+    .filter((b) => !b.url?.startsWith('https://cdn.readest.com/books/'))
     .map(({ coverImageUrl, ...rest }) => rest);
   await safeSaveJSON(fs, getLibraryFilename(), 'Books', libraryBooks);
 }

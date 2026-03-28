@@ -222,6 +222,10 @@ const ProfilePage = () => {
     setShowStorageManager(true);
   };
 
+  const handleManagePublicBookshelf = () => {
+    setShowStorageManager(true);
+  };
+
   if (!mounted) {
     return null;
   }
@@ -315,6 +319,7 @@ const ProfilePage = () => {
                         onRestorePurchase={handleIAPRestorePurchase}
                         onManageSubscription={handleManageSubscription}
                         onManageStorage={handleManageStorage}
+                        onManagePublicBookshelf={handleManagePublicBookshelf}
                       />
                     </div>
                   </>

@@ -34,8 +34,7 @@ import { useResponsiveSize } from '@/hooks/useResponsiveSize';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useTheme } from '@/hooks/useTheme';
 import { useUICSS } from '@/hooks/useUICSS';
-import { useDemoBooks } from './hooks/useDemoBooks';
-import { usePublicBooks, PUBLIC_BOOKS_GROUP_NAME } from './hooks/usePublicBooks';
+import { usePublicBooks, isPublicBook } from './hooks/usePublicBooks';
 import { useBooksSync } from './hooks/useBooksSync';
 import { useBookDataStore } from '@/store/bookDataStore';
 import { useTransferStore } from '@/store/transferStore';
@@ -79,6 +78,7 @@ import DropIndicator from '@/components/DropIndicator';
 import SettingsDialog from '@/components/settings/SettingsDialog';
 import ModalPortal from '@/components/ModalPortal';
 import TransferQueuePanel from './components/TransferQueuePanel';
+import { unpublishPublicBook } from '@/libs/publicBooks';
 
 const LibraryPageWithSearchParams = () => {
   const searchParams = useSearchParams();
@@ -133,11 +133,19 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
 
   const iconSize = useResponsiveSize(18);
   const viewSettings = settings.globalViewSettings;
-  const demoBooks = useDemoBooks();
-  const publicBooks = usePublicBooks(!!(token && user));
+  const { books: publicBooks, loading: publicBooksLoading } = usePublicBooks(!!(token && user));
   const osRef = useRef<OverlayScrollbarsComponentRef>(null);
   const containerRef: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
   const pageRef = useRef<HTMLDivElement>(null);
+
+  const buildMergedLibrary = useCallback((personalBooks: Book[], publicBooksToMerge: Book[]) => {
+    const merged = [...personalBooks];
+    for (const pub of publicBooksToMerge) {
+      const hasSamePublicBook = merged.some((b) => b.hash === pub.hash);
+      if (!hasSamePublicBook) merged.push(pub);
+    }
+    return merged;
+  }, []);
 
   const getScrollKey = (group: string) => `library-scroll-${group || 'all'}`;
 
@@ -254,11 +262,22 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   const handleRefreshLibrary = useCallback(async () => {
     const appService = await envConfig.getAppService();
     const settings = await appService.loadSettings();
-    const library = await appService.loadLibraryBooks();
+    const personalBooks = token && user ? await appService.loadLibraryBooks() : [];
+    const library = buildMergedLibrary(personalBooks, publicBooks);
     setSettings(settings);
     setLibrary(library);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [envConfig, appService]);
+  }, [buildMergedLibrary, envConfig, publicBooks, token, user]);
+
+  const ensureCanImportBooks = useCallback(() => {
+    if (token && user) return true;
+    eventDispatcher.dispatch('toast', {
+      type: 'info',
+      timeout: 2000,
+      message: _('Please sign in to import books.'),
+    });
+    return false;
+  }, [_, token, user]);
 
   useEffect(() => {
     if (appService?.hasWindow) {
@@ -273,13 +292,17 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     return;
   }, [appService, handleRefreshLibrary]);
 
-  const handleImportBookFiles = useCallback(async (event: CustomEvent) => {
-    const selectedFiles: SelectedFile[] = event.detail.files;
-    const groupId: string = event.detail.groupId || '';
-    if (selectedFiles.length === 0) return;
-    await importBooks(selectedFiles, groupId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const handleImportBookFiles = useCallback(
+    async (event: CustomEvent) => {
+      const selectedFiles: SelectedFile[] = event.detail.files;
+      const groupId: string = event.detail.groupId || '';
+      if (selectedFiles.length === 0) return;
+      if (!ensureCanImportBooks()) return;
+      await importBooks(selectedFiles, groupId);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [ensureCanImportBooks],
+  );
 
   useEffect(() => {
     eventDispatcher.on('import-book-files', handleImportBookFiles);
@@ -399,8 +422,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       const settings = await appService.loadSettings();
       setSettings(settings);
 
-      // Reuse the library from the store when we return from the reader
-      const library = libraryBooks.length > 0 ? libraryBooks : await appService.loadLibraryBooks();
+      const personalBooks = token && user ? await appService.loadLibraryBooks() : [];
+      const library = buildMergedLibrary(personalBooks, publicBooks);
       let opened = false;
       if (checkOpenWithBooks) {
         opened = await handleOpenWithBooks(appService, library);
@@ -434,7 +457,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       isInitiating.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, token, user, publicBooksLoading, buildMergedLibrary, publicBooks]);
 
   useEffect(() => {
     const group = searchParams?.get('group') || '';
@@ -478,37 +501,14 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   }, [libraryBooks, searchParams, settings.libraryGroupBy]);
 
   useEffect(() => {
-    if (demoBooks.length > 0 && libraryLoaded) {
-      const newLibrary = [...libraryBooks];
-      for (const book of demoBooks) {
-        const idx = newLibrary.findIndex((b) => b.hash === book.hash);
-        if (idx === -1) {
-          newLibrary.push(book);
-        } else {
-          newLibrary[idx] = book;
-        }
-      }
-      setLibrary(newLibrary);
-      appService?.saveLibraryBooks(newLibrary);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [demoBooks, libraryLoaded]);
-
-  useEffect(() => {
-    if (publicBooks.length === 0) return;
     const { library: current } = useLibraryStore.getState();
     const withoutPublic = current.filter((b) => !b.hash.startsWith('public-'));
-    const merged = [...withoutPublic];
-    for (const pub of publicBooks) {
-      const idx = merged.findIndex((b) => b.hash === pub.hash);
-      if (idx === -1) merged.push(pub);
-      else merged[idx] = pub;
-    }
-    setLibrary(merged);
+    setLibrary(buildMergedLibrary(withoutPublic, publicBooks));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicBooks]);
+  }, [buildMergedLibrary, publicBooks, token, user]);
 
   const importBooks = async (files: SelectedFile[], groupId?: string) => {
+    if (!ensureCanImportBooks()) return;
     setLoading(true);
     const { library } = useLibraryStore.getState();
     const failedImports: Array<{ filename: string; errorMessage: string }> = [];
@@ -670,6 +670,19 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       };
 
       try {
+        if (isPublicBook(book) && deleteAction === 'both') {
+          const originalHash = book.url?.replace('__public__', '').split(':')[1];
+          await unpublishPublicBook(originalHash || book.hash);
+          const currentLibrary = useLibraryStore.getState().library;
+          setLibrary(currentLibrary.filter((item) => item.hash !== book.hash));
+          eventDispatcher.dispatch('toast', {
+            type: 'info',
+            timeout: 1000,
+            message: _('Removed from public bookshelf: {{title}}', { title: book.title }),
+          });
+          return true;
+        }
+
         // Handle local deletion immediately
         if (deleteAction === 'local' || deleteAction === 'both') {
           await appService?.deleteBook(book, 'local');
@@ -739,6 +752,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   };
 
   const handleImportBooksFromFiles = async () => {
+    if (!ensureCanImportBooks()) return;
     setIsSelectMode(false);
     console.log('Importing books from files...');
     selectFiles({ type: 'books', multiple: true }).then((result) => {
@@ -749,6 +763,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   };
 
   const handleImportBooksFromDirectory = async () => {
+    if (!ensureCanImportBooks()) return;
     if (!appService || !isTauriAppPlatform()) return;
 
     setIsSelectMode(false);
@@ -837,6 +852,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         <LibraryHeader
           isSelectMode={isSelectMode}
           isSelectAll={isSelectAll}
+          canImportBooks={!!(token && user)}
           onPullLibrary={pullLibrary}
           onImportBooksFromFiles={handleImportBooksFromFiles}
           onImportBooksFromDirectory={
@@ -858,7 +874,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
           max='100'
         />
       </div>
-      {(loading || isSyncing) && (
+      {(loading || isSyncing || (!token && !user && publicBooksLoading)) && (
         <div className='fixed inset-0 z-50 flex items-center justify-center'>
           <Spinner loading />
         </div>
@@ -932,6 +948,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
               <DropIndicator />
               <Bookshelf
                 libraryBooks={libraryBooks}
+                canImportBooks={!!(token && user)}
                 isSelectMode={isSelectMode}
                 isSelectAll={isSelectAll}
                 isSelectNone={isSelectNone}

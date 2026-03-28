@@ -5,9 +5,9 @@ import { useSettingsStore } from '@/store/settingsStore';
 
 export const useLibrary = () => {
   const { envConfig } = useEnv();
-  const { setLibrary } = useLibraryStore();
+  const { setLibrary, libraryLoaded: storeLibraryLoaded } = useLibraryStore();
   const { setSettings } = useSettingsStore();
-  const [libraryLoaded, setLibraryLoaded] = useState(false);
+  const [libraryLoaded, setLibraryLoaded] = useState(storeLibraryLoaded);
   const isInitiating = useRef(false);
 
   useEffect(() => {
@@ -17,13 +17,15 @@ export const useLibrary = () => {
       const appService = await envConfig.getAppService();
       const settings = await appService.loadSettings();
       setSettings(settings);
-      setLibrary(await appService.loadLibraryBooks());
+      if (!useLibraryStore.getState().libraryLoaded) {
+        setLibrary(await appService.loadLibraryBooks());
+      }
       setLibraryLoaded(true);
     };
 
     initLibrary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [envConfig, setLibrary, setSettings]);
 
   return { libraryLoaded };
 };

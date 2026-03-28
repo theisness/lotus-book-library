@@ -77,7 +77,7 @@ export const navigateToProfile = (router: ReturnType<typeof useRouter>) => {
 };
 
 export const navigateToPublicBookshelf = (router: ReturnType<typeof useRouter>) => {
-  router.push('/public');
+  router.push('/library');
 };
 
 export const navigateToLibrary = (
