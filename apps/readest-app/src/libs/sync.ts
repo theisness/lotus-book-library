@@ -1,9 +1,9 @@
 import { Book, BookConfig, BookNote, BookDataRecord } from '@/types/book';
-import { getAPIBaseUrl } from '@/services/environment';
+import { getBackendAPIBaseUrl } from '@/services/environment';
 import { getAccessToken } from '@/utils/access';
 import { fetchWithTimeout } from '@/utils/fetch';
 
-const SYNC_API_ENDPOINT = getAPIBaseUrl() + '/sync';
+const SYNC_API_ENDPOINT = getBackendAPIBaseUrl() + '/sync';
 
 export type SyncType = 'books' | 'configs' | 'notes';
 export type SyncOp = 'push' | 'pull' | 'both';

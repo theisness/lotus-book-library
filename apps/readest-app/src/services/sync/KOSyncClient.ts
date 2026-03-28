@@ -4,7 +4,7 @@ import { KOSyncSettings } from '@/types/settings';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { KoSyncProxyPayload } from '@/types/kosync';
 import { isLanAddress } from '@/utils/network';
-import { getAPIBaseUrl, isTauriAppPlatform } from '../environment';
+import { getBackendAPIBaseUrl, isTauriAppPlatform } from '../environment';
 
 /**
  * Interface for KOSync progress response from the server
@@ -64,7 +64,7 @@ export class KOSyncClient {
       });
     }
 
-    const proxyUrl = `${getAPIBaseUrl()}/kosync`;
+    const proxyUrl = `${getBackendAPIBaseUrl()}/kosync`;
 
     const proxyBody: KoSyncProxyPayload = {
       serverUrl: this.config.serverUrl,

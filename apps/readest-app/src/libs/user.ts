@@ -1,8 +1,8 @@
-import { getAPIBaseUrl } from '@/services/environment';
+import { getBackendAPIBaseUrl } from '@/services/environment';
 import { getUserID } from '@/utils/access';
 import { fetchWithAuth } from '@/utils/fetch';
 
-const API_ENDPOINT = getAPIBaseUrl() + '/user/delete';
+const API_ENDPOINT = getBackendAPIBaseUrl() + '/user/delete';
 
 export const deleteUser = async () => {
   try {

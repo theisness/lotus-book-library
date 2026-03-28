@@ -3,7 +3,7 @@
 import clsx from 'clsx';
 import * as React from 'react';
 import { MdChevronRight } from 'react-icons/md';
-import { useState, useRef, useEffect, Suspense, useCallback } from 'react';
+import { useState, useRef, useEffect, Suspense, useCallback, useMemo } from 'react';
 import { ReadonlyURLSearchParams, useSearchParams } from 'next/navigation';
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from 'overlayscrollbars-react';
 import 'overlayscrollbars/overlayscrollbars.css';
@@ -64,14 +64,18 @@ import { useTransferQueue } from '@/hooks/useTransferQueue';
 import { useAppRouter } from '@/hooks/useAppRouter';
 import { Toast } from '@/components/Toast';
 import {
+  createBookFilter,
+  createBookSorter,
   createBookGroups,
   ensureLibraryGroupByType,
+  ensureLibrarySortByType,
   findGroupById,
   getBreadcrumbs,
 } from './utils/libraryUtils';
 import Spinner from '@/components/Spinner';
 import LibraryHeader from './components/LibraryHeader';
 import Bookshelf from './components/Bookshelf';
+import PublicBookshelfSection from './components/PublicBookshelfSection';
 import GroupHeader from './components/GroupHeader';
 import useShortcuts from '@/hooks/useShortcuts';
 import DropIndicator from '@/components/DropIndicator';
@@ -79,6 +83,8 @@ import SettingsDialog from '@/components/settings/SettingsDialog';
 import ModalPortal from '@/components/ModalPortal';
 import TransferQueuePanel from './components/TransferQueuePanel';
 import { unpublishPublicBook } from '@/libs/publicBooks';
+
+const PUBLIC_BOOKSHELF_COLLAPSED_STORAGE_KEY = 'library-public-bookshelf-collapsed';
 
 const LibraryPageWithSearchParams = () => {
   const searchParams = useSearchParams();
@@ -129,23 +135,53 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     [key: string]: number | null;
   }>({});
   const [pendingNavigationBookIds, setPendingNavigationBookIds] = useState<string[] | null>(null);
+  const [isPublicBookshelfCollapsed, setIsPublicBookshelfCollapsed] = useState(false);
   const isInitiating = useRef(false);
 
   const iconSize = useResponsiveSize(18);
   const viewSettings = settings.globalViewSettings;
-  const { books: publicBooks, loading: publicBooksLoading } = usePublicBooks(!!(token && user));
+  const { books: publicBooks, loading: publicBooksLoading } = usePublicBooks();
   const osRef = useRef<OverlayScrollbarsComponentRef>(null);
   const containerRef: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
   const pageRef = useRef<HTMLDivElement>(null);
+  const isLoggedIn = !!(token && user);
 
-  const buildMergedLibrary = useCallback((personalBooks: Book[], publicBooksToMerge: Book[]) => {
-    const merged = [...personalBooks];
-    for (const pub of publicBooksToMerge) {
-      const hasSamePublicBook = merged.some((b) => b.hash === pub.hash);
-      if (!hasSamePublicBook) merged.push(pub);
-    }
-    return merged;
+  const buildLibrary = useCallback(
+    (personalBooks: Book[], publicBooksToShow: Book[]) =>
+      isLoggedIn ? [...personalBooks] : [...publicBooksToShow],
+    [isLoggedIn],
+  );
+
+  useEffect(() => {
+    const storedValue = localStorage.getItem(PUBLIC_BOOKSHELF_COLLAPSED_STORAGE_KEY);
+    setIsPublicBookshelfCollapsed(storedValue === '1');
   }, []);
+
+  const togglePublicBookshelfCollapsed = useCallback(() => {
+    setIsPublicBookshelfCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(PUBLIC_BOOKSHELF_COLLAPSED_STORAGE_KEY, next ? '1' : '0');
+      return next;
+    });
+  }, []);
+
+  const publicQueryTerm = searchParams?.get('q') || null;
+  const publicViewMode = (searchParams?.get('view') || settings.libraryViewMode) as 'grid' | 'list';
+  const publicCoverFit = (searchParams?.get('cover') || settings.libraryCoverFit) as 'crop' | 'fit';
+  const publicSortBy = ensureLibrarySortByType(searchParams?.get('sort'), settings.librarySortBy);
+  const publicSortOrder =
+    searchParams?.get('order') || (settings.librarySortAscending ? 'asc' : 'desc');
+  const publicUiLanguage =
+    typeof window !== 'undefined' ? localStorage.getItem('i18nextLng') || '' : '';
+  const publicBookshelfBooks = useMemo(() => {
+    const visibleBooks = isLoggedIn ? publicBooks : [];
+    const filter = createBookFilter(publicQueryTerm);
+    const sorter = createBookSorter(publicSortBy, publicUiLanguage);
+    const sortOrderMultiplier = publicSortOrder === 'asc' ? 1 : -1;
+    return [...visibleBooks]
+      .filter((book) => filter(book))
+      .sort((a, b) => sorter(a, b) * sortOrderMultiplier);
+  }, [isLoggedIn, publicBooks, publicQueryTerm, publicSortBy, publicSortOrder, publicUiLanguage]);
 
   const getScrollKey = (group: string) => `library-scroll-${group || 'all'}`;
 
@@ -263,11 +299,11 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     const appService = await envConfig.getAppService();
     const settings = await appService.loadSettings();
     const personalBooks = token && user ? await appService.loadLibraryBooks() : [];
-    const library = buildMergedLibrary(personalBooks, publicBooks);
+    const library = buildLibrary(personalBooks, publicBooks);
     setSettings(settings);
     setLibrary(library);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildMergedLibrary, envConfig, publicBooks, token, user]);
+  }, [buildLibrary, envConfig, publicBooks, token, user]);
 
   const ensureCanImportBooks = useCallback(() => {
     if (token && user) return true;
@@ -423,7 +459,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       setSettings(settings);
 
       const personalBooks = token && user ? await appService.loadLibraryBooks() : [];
-      const library = buildMergedLibrary(personalBooks, publicBooks);
+      const library = buildLibrary(personalBooks, publicBooks);
       let opened = false;
       if (checkOpenWithBooks) {
         opened = await handleOpenWithBooks(appService, library);
@@ -457,7 +493,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       isInitiating.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, token, user, publicBooksLoading, buildMergedLibrary, publicBooks]);
+  }, [searchParams, token, user, publicBooksLoading, buildLibrary, publicBooks]);
 
   useEffect(() => {
     const group = searchParams?.get('group') || '';
@@ -501,11 +537,12 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   }, [libraryBooks, searchParams, settings.libraryGroupBy]);
 
   useEffect(() => {
-    const { library: current } = useLibraryStore.getState();
-    const withoutPublic = current.filter((b) => !b.hash.startsWith('public-'));
-    setLibrary(buildMergedLibrary(withoutPublic, publicBooks));
+    if (isLoggedIn) {
+      return;
+    }
+    setLibrary(buildLibrary([], publicBooks));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildMergedLibrary, publicBooks, token, user]);
+  }, [buildLibrary, isLoggedIn, publicBooks]);
 
   const importBooks = async (files: SelectedFile[], groupId?: string) => {
     if (!ensureCanImportBooks()) return;
@@ -831,7 +868,9 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     return <div className={clsx('full-height', !appService?.isLinuxApp && 'bg-base-200')} />;
   }
 
-  const showBookshelf = libraryLoaded || libraryBooks.length > 0;
+  const hasPrivateBooks = libraryBooks.some((book) => !book.deletedAt);
+  const hasPublicBooks = publicBookshelfBooks.length > 0;
+  const showBookshelf = libraryLoaded || hasPrivateBooks || hasPublicBooks;
 
   return (
     <div
@@ -920,7 +959,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         />
       )}
       {showBookshelf &&
-        (libraryBooks.some((book) => !book.deletedAt) ? (
+        (hasPrivateBooks || hasPublicBooks ? (
           <OverlayScrollbarsComponent
             defer
             aria-label=''
@@ -946,22 +985,36 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
               }}
             >
               <DropIndicator />
-              <Bookshelf
-                libraryBooks={libraryBooks}
-                canImportBooks={!!(token && user)}
-                isSelectMode={isSelectMode}
-                isSelectAll={isSelectAll}
-                isSelectNone={isSelectNone}
-                handleImportBooks={handleImportBooksFromFiles}
-                handleBookUpload={handleBookUpload}
-                handleBookDownload={handleBookDownload}
-                handleBookDelete={handleBookDelete('both')}
-                handleSetSelectMode={handleSetSelectMode}
-                handleShowDetailsBook={handleShowDetailsBook}
-                handleLibraryNavigation={handleLibraryNavigation}
-                booksTransferProgress={booksTransferProgress}
-                handlePushLibrary={pushLibrary}
-              />
+              {hasPrivateBooks && (
+                <Bookshelf
+                  libraryBooks={libraryBooks}
+                  canImportBooks={!!(token && user)}
+                  isSelectMode={isSelectMode}
+                  isSelectAll={isSelectAll}
+                  isSelectNone={isSelectNone}
+                  handleImportBooks={handleImportBooksFromFiles}
+                  handleBookUpload={handleBookUpload}
+                  handleBookDownload={handleBookDownload}
+                  handleBookDelete={handleBookDelete('both')}
+                  handleSetSelectMode={handleSetSelectMode}
+                  handleShowDetailsBook={handleShowDetailsBook}
+                  handleLibraryNavigation={handleLibraryNavigation}
+                  booksTransferProgress={booksTransferProgress}
+                  handlePushLibrary={pushLibrary}
+                />
+              )}
+              {isLoggedIn && (publicBooksLoading || hasPublicBooks) && (
+                <PublicBookshelfSection
+                  books={publicBookshelfBooks}
+                  loading={publicBooksLoading}
+                  collapsed={isPublicBookshelfCollapsed}
+                  onToggle={togglePublicBookshelfCollapsed}
+                  mode={publicViewMode}
+                  coverFit={publicCoverFit}
+                  setLoading={setLoading}
+                  handleShowDetailsBook={handleShowDetailsBook}
+                />
+              )}
             </div>
           </OverlayScrollbarsComponent>
         ) : (

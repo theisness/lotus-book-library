@@ -16,6 +16,7 @@ import { useResponsiveSize } from '@/hooks/useResponsiveSize';
 import { LibraryCoverFitType, LibraryViewModeType } from '@/types/settings';
 import { navigateToLogin } from '@/utils/nav';
 import { formatAuthors, formatDescription } from '@/utils/book';
+import { isPublicBook } from '../hooks/usePublicBooks';
 import ReadingProgress from './ReadingProgress';
 import BookCover from '@/components/BookCover';
 
@@ -158,6 +159,7 @@ const BookItem: React.FC<BookItemProps> = ({
                 ></div>
               )
             ) : (
+              !isPublicBook(book) &&
               (!book.uploadedAt || (book.uploadedAt && !book.downloadedAt)) && (
                 <button
                   aria-label={!book.uploadedAt ? _('Upload Book') : _('Download Book')}

@@ -378,6 +378,7 @@ export class WebAppService extends BaseAppService {
 
   override async loadLibraryBooks() {
     let books = await listMyBooks().catch(() => []);
+    books = books.filter((book) => !book.hash.startsWith('public-'));
     books = await Promise.all(
       books.map(async (book) => {
         const [bookExists, coverExists] = await Promise.all([

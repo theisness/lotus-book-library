@@ -1,9 +1,10 @@
-import { getAPIBaseUrl } from '@/services/environment';
+import { getBackendAPIBaseUrl } from '@/services/environment';
 import { fetchWithAuth } from '@/utils/fetch';
 
-const PUBLIC_BOOKS_ENDPOINT = `${getAPIBaseUrl()}/public/books`;
-const PUBLIC_BOOKS_MINE_ENDPOINT = `${getAPIBaseUrl()}/public/mine`;
-const PUBLIC_BOOKS_DOWNLOAD_ENDPOINT = `${getAPIBaseUrl()}/public/download`;
+const PUBLIC_BOOK_SHELF_ENDPOINT = `${getBackendAPIBaseUrl()}/publicBook`;
+const PUBLIC_BOOKS_ENDPOINT = `${getBackendAPIBaseUrl()}/public/books`;
+const PUBLIC_BOOKS_MINE_ENDPOINT = `${getBackendAPIBaseUrl()}/public/mine`;
+const PUBLIC_BOOKS_DOWNLOAD_ENDPOINT = `${getBackendAPIBaseUrl()}/public/download`;
 
 export interface PublicBook {
   id: string;
@@ -33,6 +34,16 @@ export interface ListPublicBooksResponse {
   pageSize: number;
   totalPages: number;
 }
+
+export const listPublicBookShelf = async (): Promise<PublicBook[]> => {
+  const response = await fetch(PUBLIC_BOOK_SHELF_ENDPOINT, { method: 'GET' });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.error || 'Request failed');
+  }
+  const data = await response.json();
+  return data.books || [];
+};
 
 export const listPublicBooks = async (
   params?: ListPublicBooksParams,

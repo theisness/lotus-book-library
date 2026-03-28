@@ -1,4 +1,4 @@
-import { getAPIBaseUrl, isWebAppPlatform } from '@/services/environment';
+import { getBackendAPIBaseUrl, isWebAppPlatform } from '@/services/environment';
 import { AppService } from '@/types/system';
 import { getUserID } from '@/utils/access';
 import { fetchWithAuth } from '@/utils/fetch';
@@ -12,12 +12,12 @@ import {
 } from '@/utils/transfer';
 
 const API_ENDPOINTS = {
-  upload: getAPIBaseUrl() + '/storage/upload',
-  download: getAPIBaseUrl() + '/storage/download',
-  delete: getAPIBaseUrl() + '/storage/delete',
-  stats: getAPIBaseUrl() + '/storage/stats',
-  list: getAPIBaseUrl() + '/storage/list',
-  purge: getAPIBaseUrl() + '/storage/purge',
+  upload: getBackendAPIBaseUrl() + '/storage/upload',
+  download: getBackendAPIBaseUrl() + '/storage/download',
+  delete: getBackendAPIBaseUrl() + '/storage/delete',
+  stats: getBackendAPIBaseUrl() + '/storage/stats',
+  list: getBackendAPIBaseUrl() + '/storage/list',
+  purge: getBackendAPIBaseUrl() + '/storage/purge',
 };
 
 export const createProgressHandler = (

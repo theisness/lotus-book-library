@@ -10,6 +10,7 @@ export const listMyBooks = async (userId: string): Promise<RemoteBookRecord[]> =
       'user_id, book_hash, meta_hash, format, title, source_title, author, group_id, group_name, tags, progress, reading_status, metadata, created_at, updated_at, deleted_at, uploaded_at',
     )
     .eq('user_id', userId)
+    .not('book_hash', 'like', 'public-%')
     .is('deleted_at', null)
     .order('updated_at', { ascending: false });
 
@@ -17,7 +18,9 @@ export const listMyBooks = async (userId: string): Promise<RemoteBookRecord[]> =
     throw new Error(error.message);
   }
 
-  const records = ((books || []) as DBBook[]).map((book) => ({ ...book })) as RemoteBookRecord[];
+  const records = ((books || []) as DBBook[])
+    .filter((book) => !String(book.book_hash || '').startsWith('public-'))
+    .map((book) => ({ ...book })) as RemoteBookRecord[];
   const bookHashes = records.map((book) => book.book_hash).filter(Boolean);
 
   if (bookHashes.length === 0) {

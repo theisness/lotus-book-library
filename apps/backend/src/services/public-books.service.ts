@@ -3,6 +3,43 @@ import { getDownloadSignedUrl } from '../lib/object-storage.js';
 import { HttpError } from '../lib/http.js';
 import type { PublicBookRecord } from '../types/shared.js';
 
+const attachPublicBookCoverUrls = async (books: PublicBookRecord[]) => {
+  const records = books.map((book) => ({
+    ...book,
+    coverUrl: undefined as string | undefined,
+  }));
+
+  await Promise.all(
+    records.map(async (book) => {
+      if (!book.cover_file_key) return;
+      try {
+        book.coverUrl = await getDownloadSignedUrl(book.cover_file_key, 1800);
+      } catch {
+        return;
+      }
+    }),
+  );
+
+  return records;
+};
+
+export const listPublicBookShelf = async () => {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('public_books')
+    .select(
+      'id, owner_user_id, book_hash, title, author, format, cover_file_key, book_file_key, published_at',
+    )
+    .is('deleted_at', null)
+    .order('published_at', { ascending: false });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return { books: await attachPublicBookCoverUrls((data || []) as PublicBookRecord[]) };
+};
+
 export const listPublicBooks = async (params: {
   page?: number;
   pageSize?: number;
@@ -44,20 +81,7 @@ export const listPublicBooks = async (params: {
     throw new Error(error.message);
   }
 
-  const books = ((data || []) as PublicBookRecord[]).map((book) => ({
-    ...book,
-    coverUrl: undefined as string | undefined,
-  }));
-  await Promise.all(
-    books.map(async (book) => {
-      if (!book.cover_file_key) return;
-      try {
-        book.coverUrl = await getDownloadSignedUrl(book.cover_file_key, 1800);
-      } catch {
-        // ignore cover signing failure per-book
-      }
-    }),
-  );
+  const books = await attachPublicBookCoverUrls((data || []) as PublicBookRecord[]);
 
   const total = count || 0;
   return {

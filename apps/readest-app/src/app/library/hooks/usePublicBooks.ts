@@ -1,18 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Book } from '@/types/book';
-import { listPublicBooks, getPublicBookDownloadUrl, type PublicBook } from '@/libs/publicBooks';
+import { listPublicBookShelf, getPublicBookDownloadUrl, type PublicBook } from '@/libs/publicBooks';
 
 export const PUBLIC_BOOKS_GROUP_NAME = '公共书架';
 
 // Convert a PublicBook from the public API into a library-compatible Book object.
-const publicBookToBook = (pub: PublicBook, isLoggedIn: boolean): Book => ({
+const publicBookToBook = (pub: PublicBook): Book => ({
   hash: `public-${pub.id}`,
   format: (pub.format?.toUpperCase() as Book['format']) || 'EPUB',
   title: pub.title || '未知书名',
   author: pub.author || '',
   coverImageUrl: pub.coverUrl || null,
-  groupName: isLoggedIn ? PUBLIC_BOOKS_GROUP_NAME : undefined,
-  groupId: undefined,
   url: `__public__${pub.id}:${pub.book_hash}`,
   createdAt: new Date(pub.published_at).getTime(),
   updatedAt: new Date(pub.published_at).getTime(),
@@ -20,7 +18,7 @@ const publicBookToBook = (pub: PublicBook, isLoggedIn: boolean): Book => ({
   downloadedAt: null,
 });
 
-export const usePublicBooks = (isLoggedIn: boolean): { books: Book[]; loading: boolean } => {
+export const usePublicBooks = (): { books: Book[]; loading: boolean } => {
   const [publicBooks, setPublicBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,17 +28,11 @@ export const usePublicBooks = (isLoggedIn: boolean): { books: Book[]; loading: b
     const load = async () => {
       setLoading(true);
       try {
-        const page1Result = await listPublicBooks({ page: 1, pageSize: 20 });
+        const books = await listPublicBookShelf();
         if (cancelled) return;
-        const books: PublicBook[] = [...page1Result.books];
-        if (page1Result.totalPages > 1) {
-          const page2Result = await listPublicBooks({ page: 2, pageSize: 20 }).catch(() => null);
-          if (cancelled) return;
-          if (page2Result) books.push(...page2Result.books);
-        }
-        setPublicBooks(books.map((pub) => publicBookToBook(pub, isLoggedIn)));
+        setPublicBooks(books.map((pub) => publicBookToBook(pub)));
       } catch {
-        // silently fail — public books are optional
+        return;
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -50,7 +42,7 @@ export const usePublicBooks = (isLoggedIn: boolean): { books: Book[]; loading: b
     return () => {
       cancelled = true;
     };
-  }, [isLoggedIn]);
+  }, []);
 
   return { books: publicBooks, loading };
 };

@@ -35,17 +35,19 @@ const getConfiguredNodeBackendBaseUrl = () => {
 // Dev API only in development mode and web platform
 // with command `pnpm dev-web`
 // for production build or tauri app use the production Web API
-export const getAPIBaseUrl = () => {
+export const getAPIBaseUrl = () => (isWebDevMode() ? '/api' : `${getBaseUrl()}/api`);
+export const getBackendAPIBaseUrl = () => {
   const backendBaseUrl = getConfiguredBackendBaseUrl();
   if (backendBaseUrl) return `${backendBaseUrl}/api`;
-  return isWebDevMode() ? '/api' : `${getBaseUrl()}/api`;
+  return getAPIBaseUrl();
 };
 
 // For Node.js API that currently not supported in some edge runtimes
-export const getNodeAPIBaseUrl = () => {
+export const getNodeAPIBaseUrl = () => (isWebDevMode() ? '/api' : `${getNodeBaseUrl()}/api`);
+export const getBackendNodeAPIBaseUrl = () => {
   const backendBaseUrl = getConfiguredNodeBackendBaseUrl();
   if (backendBaseUrl) return `${backendBaseUrl}/api`;
-  return isWebDevMode() ? '/api' : `${getNodeBaseUrl()}/api`;
+  return getNodeAPIBaseUrl();
 };
 
 export interface EnvConfigType {
