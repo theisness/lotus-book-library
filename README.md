@@ -1,44 +1,12 @@
 <div align="center">
-  <a href="https://readest.com?utm_source=github&utm_medium=referral&utm_campaign=readme" target="_blank">
-    <img src="https://github.com/readest/readest/blob/main/apps/readest-app/src-tauri/icons/icon.png?raw=true" alt="Readest Logo" width="20%" />
-  </a>
-  <h1>Readest</h1>
+  <h1>莲花书院</h1>
+  <p>Lotus Book Library</p>
   <br>
 
-[Readest][link-website] is an open-source ebook reader designed for immersive and deep reading experiences. Built as a modern rewrite of [Foliate](https://github.com/johnfactotum/foliate), it leverages [Next.js 16](https://github.com/vercel/next.js) and [Tauri v2](https://github.com/tauri-apps/tauri) to deliver a smooth, cross-platform experience across macOS, Windows, Linux, Android, iOS, and the Web.
+本项目 fork 自开源电子书阅读器 [Readest](https://github.com/readest/readest)，在其基础上改造为个人书城项目。
 
-[![Website][badge-website]][link-website]
-[![Web App][badge-web-app]][link-web-readest]
-[![OS][badge-platforms]][link-website]
-<br>
-[![Discord][badge-discord]][link-discord]
-[![Reddit][badge-reddit]][link-reddit]
-[![AGPL Licence][badge-license]](LICENSE)
-[![Language Coverage][badge-language-coverage]][link-locales]
-[![Donate][badge-donate]][link-donate]
-[![Latest release][badge-release]][link-gh-releases]
-[![Last commit][badge-last-commit]][link-gh-commits]
-[![Commits][badge-commit-activity]][link-gh-pulse]
-[![][badge-hellogithub]][link-hellogithub]
-[![Ask DeepWiki][badge-deepwiki]][link-deepwiki]
+原项目基于 [Next.js](https://github.com/vercel/next.js) 和 [Tauri v2](https://github.com/tauri-apps/tauri) 构建，支持 macOS、Windows、Linux、Android、iOS 和 Web 平台。
 
-</div>
-
-<p align="center">
-  <a href="#features">Features</a> •
-  <a href="#planned-features">Planned Features</a> •
-  <a href="#screenshots">Screenshots</a> •
-  <a href="#downloads">Downloads</a> •
-  <a href="#getting-started">Getting Started</a> •
-  <a href="#troubleshooting">Troubleshooting</a> •
-  <a href="#support">Support</a> •
-  <a href="#license">License</a>
-</p>
-
-<div align="center">
-  <a href="https://readest.com" target="_blank">
-    <img src="./data/screenshots/landing_all_platforms.png" alt="Readest Banner" width="100%" />
-  </a>
 </div>
 
 ## Features
