@@ -82,7 +82,7 @@ import DropIndicator from '@/components/DropIndicator';
 import SettingsDialog from '@/components/settings/SettingsDialog';
 import ModalPortal from '@/components/ModalPortal';
 import TransferQueuePanel from './components/TransferQueuePanel';
-import { unpublishPublicBook } from '@/libs/publicBooks';
+import { unpublishPublicBook, updatePublicBook } from '@/libs/publicBooks';
 
 const PUBLIC_BOOKSHELF_COLLAPSED_STORAGE_KEY = 'library-public-bookshelf-collapsed';
 
@@ -763,7 +763,15 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     book.author = formatAuthors(metadata.author);
     book.primaryLanguage = getPrimaryLanguage(metadata.language);
     book.updatedAt = Date.now();
-    if (metadata.coverImageBlobUrl || metadata.coverImageUrl || metadata.coverImageFile) {
+
+    const coverBlobUrl = metadata.coverImageBlobUrl;
+    const hasCoverUpdate = !!(
+      metadata.coverImageBlobUrl ||
+      metadata.coverImageUrl ||
+      metadata.coverImageFile
+    );
+
+    if (hasCoverUpdate) {
       book.coverImageUrl = metadata.coverImageBlobUrl || metadata.coverImageUrl;
       try {
         await appService?.updateCoverImage(
@@ -786,6 +794,30 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     metadata.coverImageBlobUrl = undefined;
     metadata.coverImageFile = undefined;
     await updateBook(envConfig, book);
+
+    if (isPublicBook(book) && user) {
+      const bookHash = book.url?.replace('__public__', '').split(':')[1];
+      if (bookHash) {
+        try {
+          let coverFileKey: string | undefined;
+          if (hasCoverUpdate && coverBlobUrl) {
+            const coverBlob = await fetch(coverBlobUrl).then((r) => r.blob());
+            const coverFileName = `Readest/Books/${bookHash}/cover.png`;
+            const coverFile = new File([coverBlob], coverFileName, { type: 'image/png' });
+            const { uploadFile } = await import('@/libs/storage');
+            await uploadFile(coverFile, coverFileName, undefined, bookHash);
+            coverFileKey = `${user.id}/${coverFileName}`;
+          }
+          await updatePublicBook(bookHash, {
+            title: book.title || undefined,
+            author: book.author || undefined,
+            ...(coverFileKey !== undefined ? { coverFileKey } : {}),
+          });
+        } catch (error) {
+          console.warn('Failed to sync metadata to public book:', error);
+        }
+      }
+    }
   };
 
   const handleImportBooksFromFiles = async () => {

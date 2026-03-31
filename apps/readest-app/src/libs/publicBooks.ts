@@ -102,6 +102,23 @@ export const listMyPublishedBooksDetail = async (): Promise<PublicBook[]> => {
   return data.books || [];
 };
 
+export const updatePublicBook = async (
+  bookHash: string,
+  updates: { title?: string; author?: string; coverFileKey?: string },
+): Promise<PublicBook> => {
+  const response = await fetchWithAuth(PUBLIC_BOOKS_ENDPOINT, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bookHash, ...updates }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.error || 'Failed to update public book');
+  }
+  const data = await response.json();
+  return data.book;
+};
+
 export const getPublicBookDownloadUrl = async (id: string): Promise<string> => {
   const response = await fetch(`${PUBLIC_BOOKS_DOWNLOAD_ENDPOINT}?id=${encodeURIComponent(id)}`, {
     method: 'GET',

@@ -59,6 +59,7 @@ export const env = {
   },
   s3: {
     endpoint: process.env['S3_ENDPOINT'] || '',
+    publicEndpoint: process.env['S3_PUBLIC_ENDPOINT'] || process.env['S3_ENDPOINT'] || '',
     region: process.env['S3_REGION'] || 'auto',
     accessKeyId: process.env['S3_ACCESS_KEY_ID'] || '',
     secretAccessKey: process.env['S3_SECRET_ACCESS_KEY'] || '',

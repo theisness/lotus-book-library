@@ -18,6 +18,19 @@ const s3Client = new S3Client({
   },
 });
 
+const s3PublicClient =
+  env.s3.publicEndpoint && env.s3.publicEndpoint !== env.s3.endpoint
+    ? new S3Client({
+        forcePathStyle: true,
+        region: env.s3.region,
+        endpoint: env.s3.publicEndpoint,
+        credentials: {
+          accessKeyId: env.s3.accessKeyId,
+          secretAccessKey: env.s3.secretAccessKey,
+        },
+      })
+    : s3Client;
+
 const getR2Client = () =>
   new AwsClient({
     service: 's3',
@@ -50,7 +63,7 @@ export const getDownloadSignedUrl = async (
 
   const bucket = bucketName || env.s3.bucketName;
   return await getSignedUrl(
-    s3Client,
+    s3PublicClient,
     new GetObjectCommand({
       Bucket: bucket,
       Key: fileKey,
@@ -90,7 +103,7 @@ export const getUploadSignedUrl = async (
   const signableHeaders = new Set<string>();
   signableHeaders.add('content-length');
   return await getSignedUrl(
-    s3Client,
+    s3PublicClient,
     new PutObjectCommand({
       Bucket: bucket,
       Key: fileKey,

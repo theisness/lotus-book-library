@@ -189,6 +189,36 @@ export const getPublicBookDownloadUrl = async (id: string) => {
   return { downloadUrl: await getDownloadSignedUrl(data.book_file_key, 1800) };
 };
 
+export const updatePublicBook = async (
+  userId: string,
+  bookHash: string,
+  updates: { title?: string; author?: string; coverFileKey?: string },
+) => {
+  if (!bookHash) {
+    throw new HttpError(400, 'Missing bookHash');
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (updates.title !== undefined) payload['title'] = updates.title;
+  if (updates.author !== undefined) payload['author'] = updates.author;
+  if (updates.coverFileKey !== undefined) payload['cover_file_key'] = updates.coverFileKey;
+
+  const { data, error } = await supabase
+    .from('public_books')
+    .update(payload)
+    .eq('owner_user_id', userId)
+    .eq('book_hash', bookHash)
+    .is('deleted_at', null)
+    .select(
+      'id, owner_user_id, book_hash, title, author, format, cover_file_key, book_file_key, published_at',
+    )
+    .single();
+
+  if (error) throw new HttpError(404, 'Public book not found or not owned by user');
+  return { book: data };
+};
+
 export const listMyPublishedBooks = async (userId: string, detail = false) => {
   const supabase = createSupabaseAdminClient();
 

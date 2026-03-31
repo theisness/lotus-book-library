@@ -7,6 +7,7 @@ import {
   listPublicBooks,
   publishPublicBook,
   unpublishPublicBook,
+  updatePublicBook,
 } from '../services/public-books.service.js';
 import type { AuthenticatedRequest } from '../services/auth.service.js';
 
@@ -43,6 +44,21 @@ publicRouter.delete(
     const { user } = (req as AuthenticatedRequest).auth!;
     const bookHash = (req.query['bookHash'] as string) || (req.body?.bookHash as string);
     const result = await unpublishPublicBook(user.id, bookHash);
+    res.status(200).json(result);
+  }),
+);
+
+publicRouter.patch(
+  '/books',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { user } = (req as AuthenticatedRequest).auth!;
+    const { bookHash, title, author, coverFileKey } = req.body || {};
+    const result = await updatePublicBook(user.id, bookHash as string, {
+      title,
+      author,
+      coverFileKey,
+    });
     res.status(200).json(result);
   }),
 );
