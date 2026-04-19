@@ -1,10 +1,18 @@
 import { getBackendAPIBaseUrl } from '@/services/environment';
+import type {
+  PublicBookNote,
+  PublicBookConfig,
+  ActivityFeedResponse,
+} from '@/types/public-bookshelf';
 import { fetchWithAuth } from '@/utils/fetch';
 
 const PUBLIC_BOOK_SHELF_ENDPOINT = `${getBackendAPIBaseUrl()}/publicBook`;
 const PUBLIC_BOOKS_ENDPOINT = `${getBackendAPIBaseUrl()}/public/books`;
 const PUBLIC_BOOKS_UPLOAD_ENDPOINT = `${getBackendAPIBaseUrl()}/public/books/upload`;
 const PUBLIC_BOOKS_DOWNLOAD_ENDPOINT = `${getBackendAPIBaseUrl()}/public/download`;
+const PUBLIC_NOTES_ENDPOINT = `${getBackendAPIBaseUrl()}/public/notes`;
+const PUBLIC_CONFIGS_ENDPOINT = `${getBackendAPIBaseUrl()}/public/configs`;
+const ACTIVITY_ENDPOINT = `${getBackendAPIBaseUrl()}/activity`;
 
 export interface PublicBook {
   id: string;
@@ -127,4 +135,103 @@ export const getPublicBookDownloadUrl = async (id: string): Promise<string> => {
   }
   const data = await response.json();
   return data.downloadUrl;
+};
+
+export const fetchPublicNotes = async (bookHash: string): Promise<PublicBookNote[]> => {
+  const response = await fetch(
+    `${PUBLIC_NOTES_ENDPOINT}?bookHash=${encodeURIComponent(bookHash)}`,
+    { method: 'GET' },
+  );
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.error || 'Request failed');
+  }
+  const data = await response.json();
+  return data.notes || [];
+};
+
+export const upsertPublicNotes = async (
+  bookHash: string,
+  notes: PublicBookNote[],
+): Promise<void> => {
+  await fetchWithAuth(PUBLIC_NOTES_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bookHash, notes }),
+  });
+};
+
+export const deletePublicNote = async (bookHash: string, noteId: string): Promise<void> => {
+  await fetchWithAuth(
+    `${PUBLIC_NOTES_ENDPOINT}?bookHash=${encodeURIComponent(bookHash)}&noteId=${encodeURIComponent(noteId)}`,
+    { method: 'DELETE' },
+  );
+};
+
+export const fetchPublicConfig = async (bookHash: string): Promise<PublicBookConfig | null> => {
+  const response = await fetch(
+    `${PUBLIC_CONFIGS_ENDPOINT}?bookHash=${encodeURIComponent(bookHash)}`,
+    { method: 'GET' },
+  );
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.error || 'Request failed');
+  }
+  const data = await response.json();
+  return data.config || null;
+};
+
+export const upsertPublicConfig = async (
+  bookHash: string,
+  config: Partial<PublicBookConfig>,
+): Promise<void> => {
+  await fetchWithAuth(PUBLIC_CONFIGS_ENDPOINT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bookHash, ...config }),
+  });
+};
+
+export const fetchActivityFeed = async (
+  page?: number,
+  pageSize?: number,
+): Promise<ActivityFeedResponse> => {
+  const queryParams = new URLSearchParams();
+  if (page) queryParams.set('page', page.toString());
+  if (pageSize) queryParams.set('pageSize', pageSize.toString());
+
+  const url = queryParams.toString()
+    ? `${ACTIVITY_ENDPOINT}?${queryParams.toString()}`
+    : ACTIVITY_ENDPOINT;
+
+  const response = await fetchWithAuth(url, { method: 'GET' });
+  return await response.json();
+};
+
+const PUBLIC_ADMIN_NOTES_ENDPOINT = `${getBackendAPIBaseUrl()}/public/notes/admin-notes`;
+
+export const fetchAdminNotesForPublicBook = async (
+  bookHash: string,
+): Promise<
+  Array<{
+    id: string;
+    book_hash: string;
+    type: string;
+    cfi: string;
+    text?: string;
+    style?: string;
+    color?: string;
+    note?: string;
+    created_at: string;
+    updated_at: string;
+  }>
+> => {
+  const response = await fetch(
+    `${PUBLIC_ADMIN_NOTES_ENDPOINT}?bookHash=${encodeURIComponent(bookHash)}`,
+    { method: 'GET' },
+  );
+  if (!response.ok) {
+    return [];
+  }
+  return await response.json();
 };

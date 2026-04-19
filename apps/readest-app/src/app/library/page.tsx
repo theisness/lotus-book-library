@@ -3,7 +3,7 @@
 import clsx from 'clsx';
 import * as React from 'react';
 import { MdChevronRight } from 'react-icons/md';
-import { useState, useRef, useEffect, Suspense, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, Suspense, useCallback } from 'react';
 import { ReadonlyURLSearchParams, useSearchParams } from 'next/navigation';
 import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from 'overlayscrollbars-react';
 import 'overlayscrollbars/overlayscrollbars.css';
@@ -64,18 +64,14 @@ import { useTransferQueue } from '@/hooks/useTransferQueue';
 import { useAppRouter } from '@/hooks/useAppRouter';
 import { Toast } from '@/components/Toast';
 import {
-  createBookFilter,
-  createBookSorter,
   createBookGroups,
   ensureLibraryGroupByType,
-  ensureLibrarySortByType,
   findGroupById,
   getBreadcrumbs,
 } from './utils/libraryUtils';
 import Spinner from '@/components/Spinner';
 import LibraryHeader from './components/LibraryHeader';
 import Bookshelf from './components/Bookshelf';
-import PublicBookshelfSection from './components/PublicBookshelfSection';
 import GroupHeader from './components/GroupHeader';
 import useShortcuts from '@/hooks/useShortcuts';
 import DropIndicator from '@/components/DropIndicator';
@@ -83,8 +79,7 @@ import SettingsDialog from '@/components/settings/SettingsDialog';
 import ModalPortal from '@/components/ModalPortal';
 import TransferQueuePanel from './components/TransferQueuePanel';
 import { unpublishPublicBook, updatePublicBook } from '@/libs/publicBooks';
-
-const PUBLIC_BOOKSHELF_COLLAPSED_STORAGE_KEY = 'library-public-bookshelf-collapsed';
+import { useBookshelfSwitch } from './hooks/useBookshelfSwitch';
 
 const LibraryPageWithSearchParams = () => {
   const searchParams = useSearchParams();
@@ -94,7 +89,7 @@ const LibraryPageWithSearchParams = () => {
 const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchParams | null }) => {
   const router = useAppRouter();
   const { envConfig, appService } = useEnv();
-  const { token, user } = useAuth();
+  const { token, user, isAdmin } = useAuth();
   const {
     library: libraryBooks,
     isSyncing,
@@ -135,7 +130,6 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     [key: string]: number | null;
   }>({});
   const [pendingNavigationBookIds, setPendingNavigationBookIds] = useState<string[] | null>(null);
-  const [isPublicBookshelfCollapsed, setIsPublicBookshelfCollapsed] = useState(false);
   const isInitiating = useRef(false);
 
   const iconSize = useResponsiveSize(18);
@@ -146,42 +140,14 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   const pageRef = useRef<HTMLDivElement>(null);
   const isLoggedIn = !!(token && user);
 
+  const { mode: bookshelfMode, setMode: setBookshelfMode } = useBookshelfSwitch();
+  const isPublicMode = bookshelfMode === 'public';
+
   const buildLibrary = useCallback(
     (personalBooks: Book[], publicBooksToShow: Book[]) =>
       isLoggedIn ? [...personalBooks] : [...publicBooksToShow],
     [isLoggedIn],
   );
-
-  useEffect(() => {
-    const storedValue = localStorage.getItem(PUBLIC_BOOKSHELF_COLLAPSED_STORAGE_KEY);
-    setIsPublicBookshelfCollapsed(storedValue === '1');
-  }, []);
-
-  const togglePublicBookshelfCollapsed = useCallback(() => {
-    setIsPublicBookshelfCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem(PUBLIC_BOOKSHELF_COLLAPSED_STORAGE_KEY, next ? '1' : '0');
-      return next;
-    });
-  }, []);
-
-  const publicQueryTerm = searchParams?.get('q') || null;
-  const publicViewMode = (searchParams?.get('view') || settings.libraryViewMode) as 'grid' | 'list';
-  const publicCoverFit = (searchParams?.get('cover') || settings.libraryCoverFit) as 'crop' | 'fit';
-  const publicSortBy = ensureLibrarySortByType(searchParams?.get('sort'), settings.librarySortBy);
-  const publicSortOrder =
-    searchParams?.get('order') || (settings.librarySortAscending ? 'asc' : 'desc');
-  const publicUiLanguage =
-    typeof window !== 'undefined' ? localStorage.getItem('i18nextLng') || '' : '';
-  const publicBookshelfBooks = useMemo(() => {
-    const visibleBooks = isLoggedIn ? publicBooks : [];
-    const filter = createBookFilter(publicQueryTerm);
-    const sorter = createBookSorter(publicSortBy, publicUiLanguage);
-    const sortOrderMultiplier = publicSortOrder === 'asc' ? 1 : -1;
-    return [...visibleBooks]
-      .filter((book) => filter(book))
-      .sort((a, b) => sorter(a, b) * sortOrderMultiplier);
-  }, [isLoggedIn, publicBooks, publicQueryTerm, publicSortBy, publicSortOrder, publicUiLanguage]);
 
   const getScrollKey = (group: string) => `library-scroll-${group || 'all'}`;
 
@@ -903,8 +869,10 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   }
 
   const hasPrivateBooks = libraryBooks.some((book) => !book.deletedAt);
-  const hasPublicBooks = publicBookshelfBooks.length > 0;
-  const showBookshelf = libraryLoaded || hasPrivateBooks || hasPublicBooks;
+  const hasPublicBooks = publicBooks.length > 0;
+  const displayBooks = isPublicMode ? publicBooks : libraryBooks;
+  const hasDisplayBooks = isPublicMode ? hasPublicBooks : hasPrivateBooks;
+  const showBookshelf = libraryLoaded || hasDisplayBooks;
 
   return (
     <div
@@ -925,7 +893,9 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         <LibraryHeader
           isSelectMode={isSelectMode}
           isSelectAll={isSelectAll}
-          canImportBooks={!!(token && user)}
+          canImportBooks={isPublicMode ? isAdmin : !!(token && user)}
+          bookshelfMode={bookshelfMode}
+          onBookshelfModeChange={setBookshelfMode}
           onPullLibrary={pullLibrary}
           onImportBooksFromFiles={handleImportBooksFromFiles}
           onImportBooksFromDirectory={
@@ -947,7 +917,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
           max='100'
         />
       </div>
-      {(loading || isSyncing || (!token && !user && publicBooksLoading)) && (
+      {(loading || isSyncing || (isPublicMode && publicBooksLoading)) && (
         <div className='fixed inset-0 z-50 flex items-center justify-center'>
           <Spinner loading />
         </div>
@@ -993,7 +963,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         />
       )}
       {showBookshelf &&
-        (hasPrivateBooks || hasPublicBooks ? (
+        (hasDisplayBooks ? (
           <OverlayScrollbarsComponent
             defer
             aria-label=''
@@ -1019,36 +989,22 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
               }}
             >
               <DropIndicator />
-              {hasPrivateBooks && (
-                <Bookshelf
-                  libraryBooks={libraryBooks}
-                  canImportBooks={!!(token && user)}
-                  isSelectMode={isSelectMode}
-                  isSelectAll={isSelectAll}
-                  isSelectNone={isSelectNone}
-                  handleImportBooks={handleImportBooksFromFiles}
-                  handleBookUpload={handleBookUpload}
-                  handleBookDownload={handleBookDownload}
-                  handleBookDelete={handleBookDelete('both')}
-                  handleSetSelectMode={handleSetSelectMode}
-                  handleShowDetailsBook={handleShowDetailsBook}
-                  handleLibraryNavigation={handleLibraryNavigation}
-                  booksTransferProgress={booksTransferProgress}
-                  handlePushLibrary={pushLibrary}
-                />
-              )}
-              {isLoggedIn && (publicBooksLoading || hasPublicBooks) && (
-                <PublicBookshelfSection
-                  books={publicBookshelfBooks}
-                  loading={publicBooksLoading}
-                  collapsed={isPublicBookshelfCollapsed}
-                  onToggle={togglePublicBookshelfCollapsed}
-                  mode={publicViewMode}
-                  coverFit={publicCoverFit}
-                  setLoading={setLoading}
-                  handleShowDetailsBook={handleShowDetailsBook}
-                />
-              )}
+              <Bookshelf
+                libraryBooks={displayBooks}
+                canImportBooks={isPublicMode ? isAdmin : !!(token && user)}
+                isSelectMode={!isPublicMode && isSelectMode}
+                isSelectAll={!isPublicMode && isSelectAll}
+                isSelectNone={!isPublicMode && isSelectNone}
+                handleImportBooks={handleImportBooksFromFiles}
+                handleBookUpload={handleBookUpload}
+                handleBookDownload={handleBookDownload}
+                handleBookDelete={handleBookDelete('both')}
+                handleSetSelectMode={handleSetSelectMode}
+                handleShowDetailsBook={handleShowDetailsBook}
+                handleLibraryNavigation={handleLibraryNavigation}
+                booksTransferProgress={booksTransferProgress}
+                handlePushLibrary={pushLibrary}
+              />
             </div>
           </OverlayScrollbarsComponent>
         ) : (
@@ -1056,15 +1012,37 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
             <DropIndicator />
             <div className='hero-content text-neutral-content text-center'>
               <div className='max-w-md'>
-                <h1 className='mb-5 text-5xl font-bold'>{_('Your Library')}</h1>
-                <p className='mb-5'>
-                  {_(
-                    'Welcome to your library. You can import your books here and read them anytime.',
-                  )}
-                </p>
-                <button className='btn btn-primary rounded-xl' onClick={handleImportBooksFromFiles}>
-                  {_('Import Books')}
-                </button>
+                {isPublicMode ? (
+                  <>
+                    <h1 className='mb-5 text-5xl font-bold'>{_('Public Bookshelf')}</h1>
+                    <p className='mb-5'>
+                      {_('No books have been published to the public bookshelf yet.')}
+                    </p>
+                    {isAdmin && (
+                      <button
+                        className='btn btn-primary rounded-xl'
+                        onClick={handleImportBooksFromFiles}
+                      >
+                        {_('Import Books')}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <h1 className='mb-5 text-5xl font-bold'>{_('Your Library')}</h1>
+                    <p className='mb-5'>
+                      {_(
+                        'Welcome to your library. You can import your books here and read them anytime.',
+                      )}
+                    </p>
+                    <button
+                      className='btn btn-primary rounded-xl'
+                      onClick={handleImportBooksFromFiles}
+                    >
+                      {_('Import Books')}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

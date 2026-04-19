@@ -147,13 +147,108 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
     try {
       const appService = await envConfig.getAppService();
       const { settings } = useSettingsStore.getState();
-      const { library } = useLibraryStore.getState();
-      const book = library.find((b) => b.hash === id) || bookData?.book;
+      const { library, setLibrary } = useLibraryStore.getState();
+      let book = library.find((b) => b.hash === id) || bookData?.book;
+      let file = bookData?.file;
+      let adminBooknotes: BookConfig['booknotes'] | undefined;
+
+      // Detect public book: either ID starts with "public-" or book.url starts with "__public__"
+      const isPublic = id.startsWith('public-') || !!book?.url?.startsWith('__public__');
+
+      // Public book: re-download file from API if book or file is missing
+      if (isPublic && (!book || !file)) {
+        try {
+          const { listPublicBookShelf, getPublicBookDownloadUrl, fetchAdminNotesForPublicBook } =
+            await import('@/libs/publicBooks');
+          const publicBooks = await listPublicBookShelf();
+
+          // Find the public book by ID or by book_hash
+          let pub;
+          if (id.startsWith('public-')) {
+            const pubId = id.replace('public-', '');
+            pub = publicBooks.find((b) => b.id === pubId);
+          } else if (book?.url?.startsWith('__public__')) {
+            // Extract book_hash from url format: __public__{id}:{book_hash}
+            const bookHash = book.url.replace('__public__', '').split(':')[1];
+            pub = publicBooks.find((b) => b.book_hash === bookHash);
+          }
+
+          if (pub) {
+            // Build or update book object
+            if (!book) {
+              book = {
+                hash: `public-${pub.id}`,
+                format: (pub.format?.toUpperCase() as 'EPUB' | 'PDF') || 'EPUB',
+                title: pub.title || '',
+                author: pub.author || '',
+                coverImageUrl: pub.coverUrl || null,
+                url: `__public__${pub.id}:${pub.book_hash}`,
+                createdAt: new Date(pub.published_at).getTime(),
+                updatedAt: new Date(pub.published_at).getTime(),
+                uploadedAt: null,
+                downloadedAt: null,
+              };
+            }
+
+            // Download the book file if not in memory
+            if (!file) {
+              const downloadUrl = await getPublicBookDownloadUrl(pub.id);
+              const dlResponse = await fetch(downloadUrl);
+              if (!dlResponse.ok) throw new Error('Failed to download public book');
+              const blob = await dlResponse.blob();
+              const ext = pub.format?.toLowerCase() || 'epub';
+              file = new File([blob], `${pub.title || pub.id}.${ext}`, { type: blob.type });
+
+              // Store file in bookDataStore so it survives within the session
+              useBookDataStore.setState((state) => ({
+                booksData: {
+                  ...state.booksData,
+                  [id]: {
+                    id,
+                    book: book!,
+                    file: file!,
+                    config: state.booksData[id]?.config || null,
+                    bookDoc: state.booksData[id]?.bookDoc || null,
+                    isFixedLayout: state.booksData[id]?.isFixedLayout || false,
+                  },
+                },
+              }));
+            }
+
+            // Fetch admin notes
+            try {
+              const notes = await fetchAdminNotesForPublicBook(pub.book_hash);
+              if (notes.length > 0) {
+                adminBooknotes = notes.map((n) => ({
+                  id: n.id,
+                  type: n.type as 'bookmark' | 'annotation' | 'excerpt',
+                  cfi: n.cfi,
+                  text: n.text || '',
+                  style: n.style,
+                  color: n.color,
+                  note: n.note || '',
+                  createdAt: new Date(n.created_at).getTime(),
+                  updatedAt: new Date(n.updated_at).getTime(),
+                }));
+              }
+            } catch {
+              // ignore notes fetch failure
+            }
+
+            // Add to library store if not already there
+            if (!library.find((b) => b.hash === book!.hash)) {
+              setLibrary([...library, book]);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load public book:', err);
+        }
+      }
+
       if (!book) {
         throw new Error('Book not found');
       }
       let bookDoc = bookData?.bookDoc;
-      let file = bookData?.file;
       if (!file) {
         const content = (await appService.loadBookContent(book)) as BookContent;
         file = content.file;
@@ -183,6 +278,13 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
       }
       // Filter out invalid booknotes
       config.booknotes = config.booknotes?.filter((booknote) => booknote.cfi) ?? [];
+
+      // Inject admin notes for public books
+      if (adminBooknotes && adminBooknotes.length > 0) {
+        const existingIds = new Set((config.booknotes || []).map((n) => n.id));
+        const newNotes = adminBooknotes.filter((n) => !existingIds.has(n.id));
+        config.booknotes = [...(config.booknotes || []), ...newNotes];
+      }
       await updateToc(
         bookDoc,
         config.viewSettings?.sortedTOC ?? false,

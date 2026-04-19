@@ -3,6 +3,7 @@ import { getDownloadSignedUrl, getUploadSignedUrl } from '../lib/object-storage.
 import { HttpError } from '../lib/http.js';
 import { createHash } from 'crypto';
 import type { PublicBookRecord } from '../types/shared.js';
+import { logActivity } from './activity-log.service.js';
 
 const attachPublicBookCoverUrls = async (books: PublicBookRecord[]) => {
   const records = books.map((book) => ({
@@ -150,6 +151,14 @@ export const publishPublicBook = async (userId: string, bookHash: string) => {
     .single();
 
   if (error) throw new Error(error.message);
+
+  logActivity({
+    action: 'book_published',
+    actorUserId: userId,
+    targetBookHash: bookHash,
+    targetBookTitle: data?.title ?? null,
+  });
+
   return { book: data };
 };
 
@@ -159,6 +168,15 @@ export const unpublishPublicBook = async (userId: string, bookHash: string) => {
   }
 
   const supabase = createSupabaseAdminClient();
+
+  const { data: existing } = await supabase
+    .from('public_books')
+    .select('title')
+    .eq('owner_user_id', userId)
+    .eq('book_hash', bookHash)
+    .is('deleted_at', null)
+    .single();
+
   const { error } = await supabase
     .from('public_books')
     .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
@@ -167,6 +185,14 @@ export const unpublishPublicBook = async (userId: string, bookHash: string) => {
     .is('deleted_at', null);
 
   if (error) throw new Error(error.message);
+
+  logActivity({
+    action: 'book_unpublished',
+    actorUserId: userId,
+    targetBookHash: bookHash,
+    targetBookTitle: existing?.title ?? null,
+  });
+
   return { ok: true };
 };
 
@@ -217,6 +243,14 @@ export const updatePublicBook = async (
     .single();
 
   if (error) throw new HttpError(404, 'Public book not found or not owned by user');
+
+  logActivity({
+    action: 'book_updated',
+    actorUserId: userId,
+    targetBookHash: bookHash,
+    targetBookTitle: data?.title ?? null,
+  });
+
   return { book: data };
 };
 

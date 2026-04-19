@@ -9,6 +9,7 @@ import { MdOutlineMenu } from 'react-icons/md';
 import { IoMdCloseCircle } from 'react-icons/io';
 
 import { useEnv } from '@/context/EnvContext';
+import { useAuth } from '@/context/AuthContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useLibraryStore } from '@/store/libraryStore';
@@ -21,11 +22,17 @@ import Dropdown from '@/components/Dropdown';
 import SettingsMenu from './SettingsMenu';
 import ImportMenu from './ImportMenu';
 import ViewMenu from './ViewMenu';
+import BookshelfSwitcher from './BookshelfSwitcher';
+import MessageButton from './MessageButton';
+import MessageBoxPanel from './MessageBoxPanel';
+import type { BookshelfMode } from '@/types/public-bookshelf';
 
 interface LibraryHeaderProps {
   isSelectMode: boolean;
   isSelectAll: boolean;
   canImportBooks: boolean;
+  bookshelfMode: BookshelfMode;
+  onBookshelfModeChange: (mode: BookshelfMode) => void;
   onPullLibrary: () => void;
   onImportBooksFromFiles: () => void;
   onImportBooksFromDirectory?: () => void;
@@ -39,6 +46,8 @@ const LibraryHeader: React.FC<LibraryHeaderProps> = ({
   isSelectMode,
   isSelectAll,
   canImportBooks,
+  bookshelfMode,
+  onBookshelfModeChange,
   onPullLibrary,
   onImportBooksFromFiles,
   onImportBooksFromDirectory,
@@ -51,10 +60,12 @@ const LibraryHeader: React.FC<LibraryHeaderProps> = ({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { appService } = useEnv();
+  const { user } = useAuth();
   const { systemUIVisible, statusBarHeight } = useThemeStore();
   const { currentBookshelf } = useLibraryStore();
   const { isTrafficLightVisible } = useTrafficLight();
   const [searchQuery, setSearchQuery] = useState(searchParams?.get('q') ?? '');
+  const [isMessageBoxOpen, setIsMessageBoxOpen] = useState(false);
 
   const headerRef = useRef<HTMLDivElement>(null);
   const iconSize18 = useResponsiveSize(18);
@@ -111,6 +122,11 @@ const LibraryHeader: React.FC<LibraryHeaderProps> = ({
       }}
     >
       <div className='flex w-full items-center justify-between space-x-6 sm:space-x-12'>
+        {user && (
+          <div className='exclude-title-bar-mousedown flex shrink-0 items-center pl-4'>
+            <BookshelfSwitcher mode={bookshelfMode} onModeChange={onBookshelfModeChange} />
+          </div>
+        )}
         <div className='exclude-title-bar-mousedown relative flex w-full items-center pl-4'>
           <div className='relative flex h-9 w-full items-center sm:h-7'>
             <span className='text-base-content/50 absolute ps-3'>
@@ -202,7 +218,19 @@ const LibraryHeader: React.FC<LibraryHeaderProps> = ({
             </button>
           </div>
         ) : (
-          <div className='flex h-full items-center gap-x-2 sm:gap-x-4'>
+          <div className='relative flex h-full items-center gap-x-2 sm:gap-x-4'>
+            {user && (
+              <>
+                <MessageButton
+                  isOpen={isMessageBoxOpen}
+                  onToggle={() => setIsMessageBoxOpen((prev) => !prev)}
+                />
+                <MessageBoxPanel
+                  isOpen={isMessageBoxOpen}
+                  onClose={() => setIsMessageBoxOpen(false)}
+                />
+              </>
+            )}
             <Dropdown
               label={_('View Menu')}
               className='exclude-title-bar-mousedown dropdown-bottom dropdown-end'
