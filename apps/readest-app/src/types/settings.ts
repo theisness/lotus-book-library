@@ -17,6 +17,7 @@ export const LibrarySortByType = {
   Size: 'size',
   Format: 'format',
   Published: 'published',
+  Custom: 'custom',
 } as const;
 
 export type LibrarySortByType = (typeof LibrarySortByType)[keyof typeof LibrarySortByType];
@@ -99,6 +100,7 @@ export interface SystemSettings {
   libraryCoverFit: LibraryCoverFitType;
   libraryAutoColumns: boolean;
   libraryColumns: number;
+  customBookOrder: Record<string, number>;
   customFonts: CustomFont[];
   customTextures: CustomTexture[];
   opdsCatalogs: OPDSCatalog[];

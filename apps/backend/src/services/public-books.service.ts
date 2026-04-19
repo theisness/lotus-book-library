@@ -1,6 +1,7 @@
 import { createSupabaseAdminClient } from '../lib/supabase.js';
-import { getDownloadSignedUrl } from '../lib/object-storage.js';
+import { getDownloadSignedUrl, getUploadSignedUrl } from '../lib/object-storage.js';
 import { HttpError } from '../lib/http.js';
+import { createHash } from 'crypto';
 import type { PublicBookRecord } from '../types/shared.js';
 
 const attachPublicBookCoverUrls = async (books: PublicBookRecord[]) => {
@@ -259,4 +260,50 @@ export const listMyPublishedBooks = async (userId: string, detail = false) => {
   );
 
   return { books };
+};
+
+export const adminUploadPublicBook = async (
+  adminUserId: string,
+  file: { buffer: Buffer; originalname: string; size: number },
+  metadata: { title?: string; author?: string },
+) => {
+  const bookHash = createHash('md5').update(file.buffer).digest('hex');
+  const ext = file.originalname.split('.').pop()?.toLowerCase() || 'epub';
+  const fileKey = `public-books/${bookHash}/${bookHash}.${ext}`;
+
+  // Get presigned upload URL and upload the file
+  const uploadUrl = await getUploadSignedUrl(fileKey, file.size, 600);
+  const uploadRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: new Uint8Array(file.buffer),
+    headers: { 'Content-Length': file.size.toString() },
+  });
+  if (!uploadRes.ok) {
+    throw new HttpError(500, 'Failed to upload file to storage');
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const payload = {
+    owner_user_id: adminUserId,
+    book_hash: bookHash,
+    title: metadata.title || file.originalname.replace(/\.[^.]+$/, ''),
+    author: metadata.author || null,
+    format: ext,
+    cover_file_key: null,
+    book_file_key: fileKey,
+    deleted_at: null,
+    updated_at: new Date().toISOString(),
+    published_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('public_books')
+    .upsert(payload, { onConflict: 'owner_user_id,book_hash' })
+    .select(
+      'id, owner_user_id, book_hash, title, author, format, cover_file_key, book_file_key, published_at',
+    )
+    .single();
+
+  if (error) throw new Error(error.message);
+  return { book: data };
 };

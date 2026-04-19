@@ -1,7 +1,5 @@
 import { useState } from 'react';
-import { useEnv } from '@/context/EnvContext';
 import { useTranslation } from '@/hooks/useTranslation';
-import { UserPlan } from '@/types/quota';
 
 interface DeleteConfirmationModalProps {
   show: boolean;
@@ -46,84 +44,40 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
 };
 
 interface AccountActionsProps {
-  userPlan: UserPlan;
-  iapAvailable: boolean;
   onLogout: () => void;
   onResetPassword: () => void;
   onUpdateEmail: () => void;
   onConfirmDelete: () => void;
-  onRestorePurchase?: () => void;
-  onManageSubscription?: () => void;
   onManageStorage?: () => void;
-  onManagePublicBookshelf?: () => void;
 }
 
 const AccountActions: React.FC<AccountActionsProps> = ({
-  userPlan,
-  iapAvailable,
   onLogout,
   onResetPassword,
   onUpdateEmail,
   onConfirmDelete,
-  onRestorePurchase,
-  onManageSubscription,
   onManageStorage,
-  onManagePublicBookshelf,
 }) => {
   const _ = useTranslation();
-  const { appService } = useEnv();
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-
-  const handleDeleteRequest = () => {
-    setShowConfirmDelete(true);
-  };
-
-  const handleCancelDelete = () => {
-    setShowConfirmDelete(false);
-  };
 
   return (
     <>
       <DeleteConfirmationModal
         show={showConfirmDelete}
-        onCancel={handleCancelDelete}
+        onCancel={() => setShowConfirmDelete(false)}
         onConfirm={async () => {
           await onConfirmDelete();
           setShowConfirmDelete(false);
         }}
       />
       <div className='flex flex-col gap-4 md:grid md:grid-cols-2 lg:grid-cols-3'>
-        {appService?.hasIAP && iapAvailable ? (
-          <button
-            onClick={onRestorePurchase}
-            className='w-full rounded-lg bg-blue-100 px-6 py-3 font-medium text-blue-600 transition-colors hover:bg-blue-200 md:w-auto'
-          >
-            {_('Restore Purchase')}
-          </button>
-        ) : (
-          userPlan !== 'free' && (
-            <button
-              onClick={onManageSubscription}
-              className='w-full rounded-lg bg-blue-100 px-6 py-3 font-medium text-blue-600 transition-colors hover:bg-blue-200 md:w-auto'
-            >
-              {_('Manage Subscription')}
-            </button>
-          )
-        )}
         {onManageStorage && (
           <button
             onClick={onManageStorage}
             className='w-full rounded-lg bg-purple-100 px-6 py-3 font-medium text-purple-600 transition-colors hover:bg-purple-200 md:w-auto'
           >
             {_('Manage Storage')}
-          </button>
-        )}
-        {onManagePublicBookshelf && (
-          <button
-            onClick={onManagePublicBookshelf}
-            className='w-full rounded-lg bg-amber-100 px-6 py-3 font-medium text-amber-700 transition-colors hover:bg-amber-200 md:w-auto'
-          >
-            {_('Manage Public Bookshelf')}
           </button>
         )}
         <button
@@ -145,7 +99,7 @@ const AccountActions: React.FC<AccountActionsProps> = ({
           {_('Sign Out')}
         </button>
         <button
-          onClick={handleDeleteRequest}
+          onClick={() => setShowConfirmDelete(true)}
           className='w-full rounded-lg bg-red-100 px-6 py-3 font-medium text-red-600 transition-colors hover:bg-red-200 md:w-auto'
         >
           {_('Delete Account')}

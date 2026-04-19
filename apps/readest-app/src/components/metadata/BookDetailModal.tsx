@@ -4,12 +4,14 @@ import React, { useEffect, useState } from 'react';
 import { Book } from '@/types/book';
 import { BookMetadata } from '@/libs/document';
 import { useEnv } from '@/context/EnvContext';
+import { useAuth } from '@/context/AuthContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useMetadataEdit } from './useMetadataEdit';
 import { DeleteAction } from '@/types/system';
 import { eventDispatcher } from '@/utils/event';
 import { isWebAppPlatform } from '@/services/environment';
+import { isPublicBook } from '@/app/library/hooks/usePublicBooks';
 import Alert from '@/components/Alert';
 import Dialog from '@/components/Dialog';
 import BookDetailView from './BookDetailView';
@@ -48,6 +50,7 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
 }) => {
   const _ = useTranslation();
   const { envConfig, appService } = useEnv();
+  const { isAdmin } = useAuth();
   const { safeAreaInsets } = useThemeStore();
   const [activeDeleteAction, setActiveDeleteAction] = useState<DeleteAction | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -99,6 +102,14 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
         let details = book.metadata || null;
         if (!details && book.downloadedAt) {
           details = await appService.fetchBookDetails(book);
+        }
+        if (!details && isPublicBook(book)) {
+          details = {
+            title: book.title || '',
+            author: book.author || '',
+            language: '',
+            ...(book.coverImageUrl ? { coverImageUrl: book.coverImageUrl } : {}),
+          };
         }
         setBookMeta(details);
         const size = await appService.getBookFileSize(book);
@@ -223,7 +234,11 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
                 book={book}
                 metadata={bookMeta}
                 fileSize={fileSize}
-                onEdit={handleBookMetadataUpdate ? handleEditMetadata : undefined}
+                onEdit={
+                  handleBookMetadataUpdate && (!isPublicBook(book) || isAdmin)
+                    ? handleEditMetadata
+                    : undefined
+                }
                 onDelete={handleBookDelete ? handleDelete : undefined}
                 onDeleteCloudBackup={
                   handleBookDeleteCloudBackup ? handleDeleteCloudBackup : undefined

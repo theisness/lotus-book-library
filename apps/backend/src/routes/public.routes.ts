@@ -1,15 +1,17 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { asyncHandler } from '../lib/http.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAdmin } from '../middleware/admin.js';
 import {
+  adminUploadPublicBook,
   getPublicBookDownloadUrl,
-  listMyPublishedBooks,
   listPublicBooks,
-  publishPublicBook,
   unpublishPublicBook,
   updatePublicBook,
 } from '../services/public-books.service.js';
 import type { AuthenticatedRequest } from '../services/auth.service.js';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 export const publicRouter = Router();
 
@@ -28,18 +30,24 @@ publicRouter.get(
 );
 
 publicRouter.post(
-  '/books',
-  requireAuth,
+  '/books/upload',
+  requireAdmin,
+  upload.single('file'),
   asyncHandler(async (req, res) => {
     const { user } = (req as AuthenticatedRequest).auth!;
-    const result = await publishPublicBook(user.id, req.body?.bookHash as string);
+    const file = (req as Express.Request & { file?: Express.Multer.File }).file;
+    if (!file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const { title, author } = req.body || {};
+    const result = await adminUploadPublicBook(user.id, file, { title, author });
     res.status(200).json(result);
   }),
 );
 
 publicRouter.delete(
   '/books',
-  requireAuth,
+  requireAdmin,
   asyncHandler(async (req, res) => {
     const { user } = (req as AuthenticatedRequest).auth!;
     const bookHash = (req.query['bookHash'] as string) || (req.body?.bookHash as string);
@@ -50,7 +58,7 @@ publicRouter.delete(
 
 publicRouter.patch(
   '/books',
-  requireAuth,
+  requireAdmin,
   asyncHandler(async (req, res) => {
     const { user } = (req as AuthenticatedRequest).auth!;
     const { bookHash, title, author, coverFileKey } = req.body || {};
@@ -67,17 +75,6 @@ publicRouter.get(
   '/download',
   asyncHandler(async (req, res) => {
     const result = await getPublicBookDownloadUrl(String(req.query['id'] || ''));
-    res.status(200).json(result);
-  }),
-);
-
-publicRouter.get(
-  '/mine',
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const { user } = (req as AuthenticatedRequest).auth!;
-    const detail = req.query['detail'] === '1';
-    const result = await listMyPublishedBooks(user.id, detail);
     res.status(200).json(result);
   }),
 );

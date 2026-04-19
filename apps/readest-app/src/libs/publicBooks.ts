@@ -3,7 +3,7 @@ import { fetchWithAuth } from '@/utils/fetch';
 
 const PUBLIC_BOOK_SHELF_ENDPOINT = `${getBackendAPIBaseUrl()}/publicBook`;
 const PUBLIC_BOOKS_ENDPOINT = `${getBackendAPIBaseUrl()}/public/books`;
-const PUBLIC_BOOKS_MINE_ENDPOINT = `${getBackendAPIBaseUrl()}/public/mine`;
+const PUBLIC_BOOKS_UPLOAD_ENDPOINT = `${getBackendAPIBaseUrl()}/public/books/upload`;
 const PUBLIC_BOOKS_DOWNLOAD_ENDPOINT = `${getBackendAPIBaseUrl()}/public/download`;
 
 export interface PublicBook {
@@ -67,12 +67,22 @@ export const listPublicBooks = async (
   return await response.json();
 };
 
-export const publishPublicBook = async (bookHash: string): Promise<PublicBook> => {
-  const response = await fetchWithAuth(PUBLIC_BOOKS_ENDPOINT, {
+export const adminUploadPublicBook = async (
+  file: File,
+  metadata: { title?: string; author?: string },
+): Promise<PublicBook> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (metadata.title) formData.append('title', metadata.title);
+  if (metadata.author) formData.append('author', metadata.author);
+  const response = await fetchWithAuth(PUBLIC_BOOKS_UPLOAD_ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ bookHash }),
+    body: formData,
   });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.error || 'Failed to upload public book');
+  }
   const data = await response.json();
   return data.book;
 };
@@ -88,18 +98,6 @@ export const unpublishPublicBook = async (bookHash: string): Promise<void> => {
     const errorData = await response.json().catch(() => null);
     throw new Error(errorData?.error || 'Failed to unpublish public book');
   }
-};
-
-export const listMyPublishedBooks = async (): Promise<string[]> => {
-  const response = await fetchWithAuth(PUBLIC_BOOKS_MINE_ENDPOINT, { method: 'GET' });
-  const data = await response.json();
-  return data.bookHashes || [];
-};
-
-export const listMyPublishedBooksDetail = async (): Promise<PublicBook[]> => {
-  const response = await fetchWithAuth(`${PUBLIC_BOOKS_MINE_ENDPOINT}?detail=1`, { method: 'GET' });
-  const data = await response.json();
-  return data.books || [];
 };
 
 export const updatePublicBook = async (

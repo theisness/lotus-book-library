@@ -11,7 +11,7 @@ export const createApp = () => {
   app.use(
     cors({
       origin: env.corsOrigin === '*' ? true : env.corsOrigin.split(',').map((item) => item.trim()),
-      methods: ['POST', 'GET', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
+      methods: ['POST', 'GET', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
       maxAge: 86400,
     }),
   );

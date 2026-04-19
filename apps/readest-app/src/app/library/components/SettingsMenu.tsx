@@ -7,13 +7,10 @@ import { TbSunMoon } from 'react-icons/tb';
 import { MdCloudSync, MdSync, MdSyncProblem } from 'react-icons/md';
 
 import { invoke, PermissionState } from '@tauri-apps/api/core';
-import { isTauriAppPlatform, isWebAppPlatform } from '@/services/environment';
-import { DOWNLOAD_READEST_URL } from '@/services/constants';
-import { setBackupDialogVisible } from '@/app/library/components/BackupWindow';
+import { isTauriAppPlatform } from '@/services/environment';
 import { useAuth } from '@/context/AuthContext';
 import { useEnv } from '@/context/EnvContext';
 import { useThemeStore } from '@/store/themeStore';
-import { useQuotaStats } from '@/hooks/useQuotaStats';
 import { useLibraryStore } from '@/store/libraryStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -21,16 +18,11 @@ import { useResponsiveSize } from '@/hooks/useResponsiveSize';
 import { useTransferQueue } from '@/hooks/useTransferQueue';
 import { navigateToLogin, navigateToProfile } from '@/utils/nav';
 import { tauriHandleSetAlwaysOnTop, tauriHandleToggleFullScreen } from '@/utils/window';
-import { optInTelemetry, optOutTelemetry } from '@/utils/telemetry';
 import { setAboutDialogVisible } from '@/components/AboutWindow';
-import { setMigrateDataDirDialogVisible } from '@/app/library/components/MigrateDataWindow';
-import { requestStoragePermission } from '@/utils/permission';
 import { saveSysSettings } from '@/helpers/settings';
-import { selectDirectory } from '@/utils/bridge';
 import { formatLocaleDateTime } from '@/utils/book';
 import UserAvatar from '@/components/UserAvatar';
 import MenuItem from '@/components/MenuItem';
-import Quota from '@/components/Quota';
 import Menu from '@/components/Menu';
 
 interface SettingsMenuProps {
@@ -47,8 +39,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
   const _ = useTranslation();
   const router = useRouter();
   const { envConfig, appService } = useEnv();
-  const { user } = useAuth();
-  const { userProfilePlan, quotas } = useQuotaStats(true);
+  const { user, isAdmin } = useAuth();
   const { themeMode, setThemeMode } = useThemeStore();
   const { settings, setSettingsDialogOpen } = useSettingsStore();
   const [isAutoUpload, setIsAutoUpload] = useState(settings.autoUpload);
@@ -60,16 +51,10 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
   const [isAutoImportBooksOnOpen, setIsAutoImportBooksOnOpen] = useState(
     settings.autoImportBooksOnOpen,
   );
-  const [isTelemetryEnabled, setIsTelemetryEnabled] = useState(settings.telemetryEnabled);
   const [alwaysInForeground, setAlwaysInForeground] = useState(settings.alwaysInForeground);
-  const [savedBookCoverForLockScreen, setSavedBookCoverForLockScreen] = useState(
-    settings.savedBookCoverForLockScreen || '',
-  );
   const iconSize = useResponsiveSize(16);
 
-  const [isRefreshingMetadata, setIsRefreshingMetadata] = useState(false);
-  const [refreshMetadataProgress, setRefreshMetadataProgress] = useState('');
-  const { isSyncing, setLibrary } = useLibraryStore();
+  const { isSyncing } = useLibraryStore();
   const { stats, hasActiveTransfers, setIsTransferQueueOpen } = useTransferQueue();
 
   const openTransferQueue = () => {
@@ -79,11 +64,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
 
   const showAboutReadest = () => {
     setAboutDialogVisible(true);
-    setIsDropdownOpen?.(false);
-  };
-
-  const downloadReadest = () => {
-    window.open(DOWNLOAD_READEST_URL, '_blank');
     setIsDropdownOpen?.(false);
   };
 
@@ -100,11 +80,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
   const cycleThemeMode = () => {
     const nextMode = themeMode === 'auto' ? 'light' : themeMode === 'light' ? 'dark' : 'auto';
     setThemeMode(nextMode);
-  };
-
-  const handleReloadPage = () => {
-    window.location.reload();
-    setIsDropdownOpen?.(false);
   };
 
   const handleFullScreen = () => {
@@ -135,7 +110,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
     const newValue = !settings.autoUpload;
     saveSysSettings(envConfig, 'autoUpload', newValue);
     setIsAutoUpload(newValue);
-
     if (newValue && !user) {
       navigateToLogin(router);
     }
@@ -165,89 +139,13 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
     setIsOpenLastBooks(newValue);
   };
 
-  const toggleTelemetry = () => {
-    const newValue = !settings.telemetryEnabled;
-    saveSysSettings(envConfig, 'telemetryEnabled', newValue);
-    setIsTelemetryEnabled(newValue);
-    if (newValue) {
-      optInTelemetry();
-    } else {
-      optOutTelemetry();
-    }
-  };
-
-  const handleUpgrade = () => {
-    navigateToProfile(router);
-    setIsDropdownOpen?.(false);
-  };
-
-  const handleSetRootDir = () => {
-    setMigrateDataDirDialogVisible(true);
-    setIsDropdownOpen?.(false);
-  };
-
-  const handleBackupRestore = () => {
-    setIsDropdownOpen?.(false);
-    setBackupDialogVisible(true);
-  };
-
-  const handleRefreshMetadata = async () => {
-    if (!appService || isRefreshingMetadata) return;
-    setIsRefreshingMetadata(true);
-    setRefreshMetadataProgress(_('Loading library...'));
-    try {
-      const books = useLibraryStore.getState().library;
-      const activeBooks = books.filter((b) => !b.deletedAt);
-      let refreshed = 0;
-      for (let i = 0; i < activeBooks.length; i++) {
-        setRefreshMetadataProgress(`${i + 1} / ${activeBooks.length}`);
-        try {
-          if (await appService.refreshBookMetadata(activeBooks[i]!)) {
-            refreshed++;
-          }
-        } catch {
-          // Skip books whose files can't be opened
-        }
-      }
-      setLibrary([...books]);
-      setRefreshMetadataProgress(_('{{count}} books refreshed', { count: refreshed }));
-      onPullLibrary(true);
-      setTimeout(() => {
-        setIsRefreshingMetadata(false);
-        setRefreshMetadataProgress('');
-      }, 2000);
-    } catch (error) {
-      console.error('Failed to refresh metadata:', error);
-      setRefreshMetadataProgress(_('Failed to refresh metadata'));
-      setTimeout(() => {
-        setIsRefreshingMetadata(false);
-        setRefreshMetadataProgress('');
-      }, 2000);
-    }
-  };
-
   const openSettingsDialog = () => {
     setIsDropdownOpen?.(false);
     setSettingsDialogOpen(true);
   };
 
-  const handleSetSavedBookCoverForLockScreen = async () => {
-    if (!(await requestStoragePermission()) && appService?.distChannel === 'readest') return;
-
-    const newValue = settings.savedBookCoverForLockScreen ? '' : 'default';
-    if (newValue) {
-      const response = await selectDirectory();
-      if (response.path) {
-        saveSysSettings(envConfig, 'savedBookCoverForLockScreenPath', response.path);
-      }
-    }
-    saveSysSettings(envConfig, 'savedBookCoverForLockScreen', newValue);
-    setSavedBookCoverForLockScreen(newValue);
-  };
-
   const toggleAlwaysInForeground = async () => {
     const requestAlwaysInForeground = !settings.alwaysInForeground;
-
     if (requestAlwaysInForeground) {
       let permission = await invoke<Permissions>('plugin:native-tts|checkPermissions');
       if (permission.postNotification !== 'granted') {
@@ -257,7 +155,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
       }
       if (permission.postNotification !== 'granted') return;
     }
-
     saveSysSettings(envConfig, 'alwaysInForeground', requestAlwaysInForeground);
     setAlwaysInForeground(requestAlwaysInForeground);
   };
@@ -272,10 +169,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
         ? _('Light Mode')
         : _('Auto Mode');
 
-  const savedBookCoverPath = settings.savedBookCoverForLockScreenPath;
-  const coverDir = savedBookCoverPath ? savedBookCoverPath.split('/').pop() : 'Images';
-  const savedBookCoverDescription = `💾 ${coverDir}/last-book-cover.png`;
-
   return (
     <Menu
       className={clsx(
@@ -285,72 +178,80 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
       onCancel={() => setIsDropdownOpen?.(false)}
     >
       {user ? (
-        <MenuItem
-          label={
-            userDisplayName
-              ? _('Logged in as {{userDisplayName}}', { userDisplayName })
-              : _('Logged in')
-          }
-          labelClass='!max-w-40'
-          aria-label={_('View account details and quota')}
-          Icon={
-            avatarUrl ? (
-              <UserAvatar url={avatarUrl} size={iconSize} DefaultIcon={PiUserCircleCheck} />
-            ) : (
-              PiUserCircleCheck
-            )
-          }
-        >
-          <ul className='ms-0 flex flex-col ps-0 before:hidden'>
-            <MenuItem
-              label={_('Cloud File Transfers')}
-              Icon={MdCloudSync}
-              description={
-                hasActiveTransfers
-                  ? _('{{activeCount}} active, {{pendingCount}} pending', {
-                      activeCount: stats.active,
-                      pendingCount: stats.pending,
-                    })
-                  : stats.failed > 0
-                    ? _('{{failedCount}} failed', { failedCount: stats.failed })
-                    : ''
-              }
-              onClick={openTransferQueue}
-            />
-            <MenuItem
-              label={
-                settings.lastSyncedAtBooks
-                  ? _('Synced at {{time}}', {
-                      time: formatLocaleDateTime(settings.lastSyncedAtBooks),
-                    })
-                  : _('Never synced')
-              }
-              Icon={user ? MdSync : MdSyncProblem}
-              labelClass='ps-2 pe-1 !mx-0'
-              iconClassName={user && isSyncing ? 'animate-reverse-spin' : ''}
-              onClick={onPullLibrary.bind(null, true, true)}
-            />
-            <button
-              onClick={handleUserProfile}
-              className='hover:bg-base-300 w-full rounded-md'
-              style={{
-                paddingInlineStart: `${iconSize}px`,
-              }}
-            >
-              <Quota quotas={quotas} labelClassName='h-10 pl-3 pr-2' />
-            </button>
-            <MenuItem label={_('Account')} onClick={handleUserProfile} />
-          </ul>
-        </MenuItem>
+        <>
+          <MenuItem
+            label={
+              userDisplayName
+                ? _('Logged in as {{userDisplayName}}', { userDisplayName })
+                : _('Logged in')
+            }
+            labelClass='!max-w-40'
+            aria-label={_('View account details and quota')}
+            Icon={
+              avatarUrl ? (
+                <UserAvatar url={avatarUrl} size={iconSize} DefaultIcon={PiUserCircleCheck} />
+              ) : (
+                PiUserCircleCheck
+              )
+            }
+          />
+          <MenuItem
+            label={_('Cloud File Transfers')}
+            Icon={MdCloudSync}
+            description={
+              hasActiveTransfers
+                ? _('{{activeCount}} active, {{pendingCount}} pending', {
+                    activeCount: stats.active,
+                    pendingCount: stats.pending,
+                  })
+                : stats.failed > 0
+                  ? _('{{failedCount}} failed', { failedCount: stats.failed })
+                  : ''
+            }
+            onClick={openTransferQueue}
+          />
+          <MenuItem
+            label={
+              settings.lastSyncedAtBooks
+                ? _('Synced at {{time}}', {
+                    time: formatLocaleDateTime(settings.lastSyncedAtBooks),
+                  })
+                : _('Never synced')
+            }
+            Icon={user ? MdSync : MdSyncProblem}
+            labelClass='ps-2 pe-1 !mx-0'
+            iconClassName={user && isSyncing ? 'animate-reverse-spin' : ''}
+            onClick={onPullLibrary.bind(null, true, true)}
+          />
+          <MenuItem label={_('Account')} onClick={handleUserProfile} />
+          {isAdmin && (
+            <>
+              <hr aria-hidden='true' className='border-base-200 my-1' />
+              <MenuItem
+                label='公共书架管理'
+                onClick={() => {
+                  setIsDropdownOpen?.(false);
+                  router.push('/admin/public-books');
+                }}
+              />
+              <MenuItem
+                label='成员管理'
+                onClick={() => {
+                  setIsDropdownOpen?.(false);
+                  router.push('/admin/members');
+                }}
+              />
+            </>
+          )}
+        </>
       ) : (
-        <MenuItem label={_('Sign In')} Icon={PiUserCircle} onClick={handleUserLogin}></MenuItem>
+        <MenuItem label={_('Sign In')} Icon={PiUserCircle} onClick={handleUserLogin} />
       )}
       <MenuItem
         label={_('Auto Upload Books to Cloud')}
         toggled={isAutoUpload}
         onClick={toggleAutoUploadBooks}
       />
-
       {isTauriAppPlatform() && !appService?.isMobile && (
         <MenuItem
           label={_('Auto Import on File Open')}
@@ -398,12 +299,11 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
       />
       {appService?.isAndroidApp && (
         <MenuItem
-          label={_(_('Background Read Aloud'))}
+          label={_('Background Read Aloud')}
           toggled={alwaysInForeground}
           onClick={toggleAlwaysInForeground}
         />
       )}
-      <MenuItem label={_('Reload Page')} onClick={handleReloadPage} />
       <MenuItem
         label={themeModeLabel}
         Icon={themeMode === 'dark' ? PiMoon : themeMode === 'light' ? PiSun : TbSunMoon}
@@ -411,41 +311,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ onPullLibrary, setIsDropdow
       />
       <MenuItem label={_('Settings')} Icon={PiGear} onClick={openSettingsDialog} />
       <hr aria-hidden='true' className='border-base-200 my-1' />
-      <MenuItem label={_('Advanced Settings')}>
-        <ul className='ms-0 flex flex-col ps-0 before:hidden'>
-          {appService?.canCustomizeRootDir && (
-            <MenuItem label={_('Change Data Location')} onClick={handleSetRootDir} />
-          )}
-          <MenuItem label={_('Backup & Restore')} onClick={handleBackupRestore} />
-          <MenuItem
-            label={_('Refresh Metadata')}
-            description={refreshMetadataProgress}
-            onClick={handleRefreshMetadata}
-            disabled={isRefreshingMetadata}
-          />
-          {appService?.isAndroidApp && appService?.distChannel !== 'playstore' && (
-            <MenuItem
-              label={_('Save Book Cover')}
-              tooltip={_('Auto-save last book cover')}
-              description={savedBookCoverForLockScreen ? savedBookCoverDescription : ''}
-              toggled={!!savedBookCoverForLockScreen}
-              onClick={handleSetSavedBookCoverForLockScreen}
-            />
-          )}
-        </ul>
-      </MenuItem>
-      <hr aria-hidden='true' className='border-base-200 my-1' />
-      {user && userProfilePlan === 'free' && (
-        <MenuItem label={_('Upgrade to Readest Premium')} onClick={handleUpgrade} />
-      )}
-      {isWebAppPlatform() && <MenuItem label={_('下载莲花书院')} onClick={downloadReadest} />}
-      <MenuItem label={_('About Readest')} onClick={showAboutReadest} />
-      <MenuItem
-        label={_('Help improve Readest')}
-        description={isTelemetryEnabled ? _('Sharing anonymized statistics') : ''}
-        toggled={isTelemetryEnabled}
-        onClick={toggleTelemetry}
-      />
+      <MenuItem label={_('关于莲花书院')} onClick={showAboutReadest} />
     </Menu>
   );
 };

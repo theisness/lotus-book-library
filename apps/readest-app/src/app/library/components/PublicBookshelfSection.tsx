@@ -60,8 +60,8 @@ const PublicBookshelfSection: React.FC<PublicBookshelfSectionProps> = ({
             <div
               className={clsx(
                 'bookshelf-items',
-                mode === 'grid' && 'grid grid-cols-3 gap-x-4 sm:gap-x-0',
-                mode === 'grid' && 'sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-12',
+                mode === 'grid' &&
+                  'grid gap-x-2 gap-y-0 [grid-template-columns:repeat(auto-fill,160px)]',
                 mode === 'list' && 'flex flex-col',
               )}
             >

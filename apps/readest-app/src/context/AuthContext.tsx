@@ -10,6 +10,7 @@ import { useBookDataStore } from '@/store/bookDataStore';
 interface AuthContextType {
   token: string | null;
   user: User | null;
+  isAdmin: boolean;
   login: (token: string, user: User) => void;
   logout: () => Promise<void>;
   refresh: () => void;
@@ -31,6 +32,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     return null;
   });
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const fetchAdminStatus = async (accessToken: string) => {
+    try {
+      const backendUrl = process.env['NEXT_PUBLIC_BACKEND_BASE_URL'] || '';
+      const res = await fetch(`${backendUrl}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsAdmin(data.isAdmin === true);
+      } else {
+        setIsAdmin(false);
+      }
+    } catch {
+      setIsAdmin(false);
+    }
+  };
 
   const clearAuthScopedState = () => {
     localStorage.removeItem('token');
@@ -38,6 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    setIsAdmin(false);
     useLibraryStore.setState({
       library: [],
       libraryLoaded: false,
@@ -63,6 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         posthog.identify(user.id);
         setToken(access_token);
         setUser(user);
+        fetchAdminStatus(access_token);
       } else {
         clearAuthScopedState();
       }
@@ -112,7 +133,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout, refresh }}>
+    <AuthContext.Provider value={{ token, user, isAdmin, login, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );

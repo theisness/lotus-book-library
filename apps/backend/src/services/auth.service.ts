@@ -2,6 +2,7 @@ import { jwtDecode } from 'jwt-decode';
 import type { Request } from 'express';
 import { env } from '../config/env.js';
 import { supabase } from '../lib/supabase.js';
+import { createSupabaseAdminClient } from '../lib/supabase.js';
 import type { UserPlan } from '../types/shared.js';
 import { HttpError } from '../lib/http.js';
 
@@ -94,4 +95,14 @@ export const getDailyTranslationPlanData = (token: string) => {
     plan,
     quota,
   };
+};
+
+export const isUserAdmin = async (userId: string): Promise<boolean> => {
+  const admin = createSupabaseAdminClient();
+  const { data } = await admin
+    .from('user_profiles')
+    .select('is_admin')
+    .eq('user_id', userId)
+    .single();
+  return data?.is_admin === true;
 };

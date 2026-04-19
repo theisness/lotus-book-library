@@ -771,7 +771,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       metadata.coverImageFile
     );
 
-    if (hasCoverUpdate) {
+    if (hasCoverUpdate && !isPublicBook(book)) {
       book.coverImageUrl = metadata.coverImageBlobUrl || metadata.coverImageUrl;
       try {
         await appService?.updateCoverImage(
@@ -782,6 +782,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       } catch (error) {
         console.warn('Failed to update cover image:', error);
       }
+    } else if (hasCoverUpdate && isPublicBook(book)) {
+      book.coverImageUrl = metadata.coverImageBlobUrl || metadata.coverImageUrl;
     }
     if (isWebAppPlatform()) {
       // Clear HTTP cover image URL if cover is updated with a local file

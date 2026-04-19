@@ -1,5 +1,7 @@
 import clsx from 'clsx';
 import { useCallback } from 'react';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useEnv } from '@/context/EnvContext';
 import { useLibraryStore } from '@/store/libraryStore';
 import { useBookDataStore } from '@/store/bookDataStore';
@@ -88,6 +90,7 @@ interface BookshelfItemProps {
   item: Book | BooksGroup;
   coverFit: LibraryCoverFitType;
   isSelectMode: boolean;
+  isDraggable?: boolean;
   itemSelected: boolean;
   transferProgress: number | null;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
@@ -110,6 +113,7 @@ const BookshelfItem: React.FC<BookshelfItemProps> = ({
   item,
   coverFit,
   isSelectMode,
+  isDraggable = false,
   itemSelected,
   transferProgress,
   setLoading,
@@ -127,6 +131,16 @@ const BookshelfItem: React.FC<BookshelfItemProps> = ({
   const { envConfig, appService } = useEnv();
   const { settings } = useSettingsStore();
   const { updateBook, setLibrary } = useLibraryStore();
+
+  const sortableId = 'hash' in item ? item.hash : item.id;
+  const {
+    attributes: sortableAttributes,
+    listeners: sortableListeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sortableId, disabled: !isDraggable });
 
   const showBookDetailsModal = useCallback(async (book: Book) => {
     handleShowDetailsBook(book);
@@ -448,7 +462,22 @@ const BookshelfItem: React.FC<BookshelfItemProps> = ({
   };
 
   return (
-    <div className={clsx(mode === 'list' && 'sm:hover:bg-base-300/50 px-4 sm:px-6')}>
+    <div
+      ref={isDraggable ? setNodeRef : undefined}
+      className={clsx(mode === 'list' && 'sm:hover:bg-base-300/50 px-4 sm:px-6')}
+      style={
+        isDraggable
+          ? {
+              transform: CSS.Transform.toString(transform),
+              transition,
+              opacity: isDragging ? 0.5 : undefined,
+              zIndex: isDragging ? 50 : undefined,
+            }
+          : undefined
+      }
+      {...(isDraggable ? sortableAttributes : {})}
+      {...(isDraggable ? sortableListeners : {})}
+    >
       <div
         className={clsx(
           'visible-focus-inset-2 group',
