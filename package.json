@@ -5,7 +5,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "tauri": "pnpm --filter @readest/readest-app tauri",
-    "dev-web": "pnpm --filter @readest/readest-app dev-web",
+    "dev": "concurrently \"pnpm dev-backend\" \"pnpm dev-frontend\"",
+    "dev-frontend": "pnpm --filter @readest/readest-app dev-web",
     "dev-backend": "pnpm --filter @readest/backend dev",
     "build-backend": "pnpm --filter @readest/backend build",
     "start-backend": "pnpm --filter @readest/backend start",
@@ -21,6 +22,7 @@
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.9.1",
     "@sindresorhus/tsconfig": "^6.0.0",
+    "concurrently": "^9.2.1",
     "eslint": "^9.28.0",
     "eslint-config-prettier": "^9.1.0",
     "husky": "^9.1.6",

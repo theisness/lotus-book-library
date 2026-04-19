@@ -137,3 +137,18 @@ CREATE POLICY public_books_delete ON public.public_books FOR DELETE TO authentic
 
 GRANT ALL ON public.public_books TO authenticated;
 GRANT SELECT ON public.public_books TO anon;
+
+CREATE TABLE public.user_profiles (
+  user_id uuid NOT NULL,
+  is_admin boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NULL DEFAULT now(),
+  updated_at timestamp with time zone NULL DEFAULT now(),
+  CONSTRAINT user_profiles_pkey PRIMARY KEY (user_id),
+  CONSTRAINT user_profiles_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE
+);
+
+ALTER TABLE public.user_profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY user_profiles_select ON public.user_profiles FOR SELECT TO authenticated USING ((SELECT auth.uid()) = user_id);
+
+GRANT SELECT ON public.user_profiles TO authenticated;
+GRANT ALL ON public.user_profiles TO service_role;

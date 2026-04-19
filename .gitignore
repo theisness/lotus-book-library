@@ -2,7 +2,7 @@
 docker/.env
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.js
 .yarn/install-state.gz
@@ -59,3 +59,7 @@ result*
 .claude/settings.local.json
 
 .claude
+
+.vscode
+.idea
+.kiro
