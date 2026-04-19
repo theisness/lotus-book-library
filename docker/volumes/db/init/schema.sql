@@ -152,3 +152,81 @@ CREATE POLICY user_profiles_select ON public.user_profiles FOR SELECT TO authent
 
 GRANT SELECT ON public.user_profiles TO authenticated;
 GRANT ALL ON public.user_profiles TO service_role;
+
+CREATE TABLE public.public_book_notes (
+  id text NOT NULL,
+  book_hash text NOT NULL,
+  admin_user_id uuid NOT NULL,
+  type text NOT NULL,           -- 'bookmark' | 'annotation' | 'excerpt'
+  cfi text,
+  text text,
+  style text,
+  color text,
+  note text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  deleted_at timestamptz,
+  CONSTRAINT public_book_notes_pkey PRIMARY KEY (book_hash, id),
+  CONSTRAINT public_book_notes_admin_fkey FOREIGN KEY (admin_user_id)
+    REFERENCES auth.users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_public_book_notes_book_hash ON public.public_book_notes (book_hash, deleted_at);
+
+ALTER TABLE public.public_book_notes ENABLE ROW LEVEL SECURITY;
+
+-- 所有人可读（包括匿名用户）
+CREATE POLICY public_book_notes_select ON public.public_book_notes
+  FOR SELECT USING (deleted_at IS NULL);
+
+-- 仅管理员可写（通过后端 requireAdmin 中间件控制，使用 service_role）
+GRANT SELECT ON public.public_book_notes TO anon;
+GRANT SELECT ON public.public_book_notes TO authenticated;
+GRANT ALL ON public.public_book_notes TO service_role;
+
+CREATE TABLE public.public_book_configs (
+  book_hash text NOT NULL,
+  admin_user_id uuid NOT NULL,
+  location text,
+  progress text,
+  view_settings jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  CONSTRAINT public_book_configs_pkey PRIMARY KEY (book_hash),
+  CONSTRAINT public_book_configs_admin_fkey FOREIGN KEY (admin_user_id)
+    REFERENCES auth.users (id) ON DELETE CASCADE
+);
+
+ALTER TABLE public.public_book_configs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY public_book_configs_select ON public.public_book_configs
+  FOR SELECT USING (true);
+
+GRANT SELECT ON public.public_book_configs TO anon;
+GRANT SELECT ON public.public_book_configs TO authenticated;
+GRANT ALL ON public.public_book_configs TO service_role;
+
+CREATE TABLE public.activity_log (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  action text NOT NULL,           -- 'book_published' | 'book_updated' | 'book_unpublished' | 'note_added'
+  actor_user_id uuid NOT NULL,
+  target_book_hash text NOT NULL,
+  target_book_title text,
+  details jsonb,
+  created_at timestamptz DEFAULT now(),
+  CONSTRAINT activity_log_pkey PRIMARY KEY (id),
+  CONSTRAINT activity_log_actor_fkey FOREIGN KEY (actor_user_id)
+    REFERENCES auth.users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_activity_log_created_at ON public.activity_log (created_at DESC);
+
+ALTER TABLE public.activity_log ENABLE ROW LEVEL SECURITY;
+
+-- 已认证用户可读
+CREATE POLICY activity_log_select ON public.activity_log
+  FOR SELECT TO authenticated USING (true);
+
+-- 仅 service_role 可写
+GRANT SELECT ON public.activity_log TO authenticated;
+GRANT ALL ON public.activity_log TO service_role;
