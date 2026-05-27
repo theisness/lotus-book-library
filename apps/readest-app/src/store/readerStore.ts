@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import {
   BookContent,
   BookConfig,
+  HighlightStyle,
   PageInfo,
   BookProgress,
   ViewSettings,
@@ -224,7 +225,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
                   type: n.type as 'bookmark' | 'annotation' | 'excerpt',
                   cfi: n.cfi,
                   text: n.text || '',
-                  style: n.style,
+                  style: n.style as HighlightStyle | undefined,
                   color: n.color,
                   note: n.note || '',
                   createdAt: new Date(n.created_at).getTime(),

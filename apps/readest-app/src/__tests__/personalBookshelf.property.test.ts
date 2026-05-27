@@ -46,7 +46,6 @@ function filterPersonalBooks(allBooks: Book[]): Book[] {
 
 // --- Arbitraries ---
 
-const asciiStringArb = fc.string().map((s) => s.replace(/[^\x20-\x7E]/g, 'a'));
 const nonEmptyAsciiStringArb = fc
   .string({ minLength: 1 })
   .map((s) => s.replace(/[^\x20-\x7E]/g, 'a'))

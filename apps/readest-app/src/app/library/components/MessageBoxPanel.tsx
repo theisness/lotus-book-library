@@ -13,8 +13,10 @@ import {
 } from '@/libs/publicBooks';
 import { useLibraryStore } from '@/store/libraryStore';
 import { useBookDataStore } from '@/store/bookDataStore';
+import type { BookData } from '@/store/bookDataStore';
 import type { ActivityRecord } from '@/types/public-bookshelf';
 import type { PublicBook } from '@/libs/publicBooks';
+import type { BookConfig, HighlightStyle } from '@/types/book';
 import ActivityFeedItem from './ActivityFeedItem';
 
 const READ_IDS_KEY = 'activity-feed-read-ids';
@@ -176,7 +178,7 @@ const MessageBoxPanel: React.FC<MessageBoxPanelProps> = ({ isOpen, onClose }) =>
           type: n.type as 'bookmark' | 'annotation' | 'excerpt',
           cfi: n.cfi,
           text: n.text || '',
-          style: n.style,
+          style: n.style as HighlightStyle | undefined,
           color: n.color,
           note: n.note || '',
           createdAt: new Date(n.created_at).getTime(),
@@ -194,22 +196,28 @@ const MessageBoxPanel: React.FC<MessageBoxPanelProps> = ({ isOpen, onClose }) =>
         }
 
         // Store file and config in bookDataStore
-        useBookDataStore.setState((state) => ({
-          booksData: {
-            ...state.booksData,
-            [publicHash]: {
-              id: publicHash,
-              book: publicBook,
-              file: bookFile,
-              config:
-                booknotes.length > 0
-                  ? { ...(state.booksData[publicHash]?.config || {}), booknotes }
-                  : state.booksData[publicHash]?.config || null,
-              bookDoc: state.booksData[publicHash]?.bookDoc || null,
-              isFixedLayout: state.booksData[publicHash]?.isFixedLayout || false,
+        useBookDataStore.setState((state) => {
+          const existing = state.booksData[publicHash];
+          const baseConfig: BookConfig = existing?.config ?? { updatedAt: Date.now() };
+          const config: BookConfig | null =
+            booknotes.length > 0 ? { ...baseConfig, booknotes } : (existing?.config ?? null);
+
+          const bookData: BookData = {
+            id: publicHash,
+            book: publicBook,
+            file: bookFile,
+            config,
+            bookDoc: existing?.bookDoc ?? null,
+            isFixedLayout: existing?.isFixedLayout ?? false,
+          };
+
+          return {
+            booksData: {
+              ...state.booksData,
+              [publicHash]: bookData,
             },
-          },
-        }));
+          };
+        });
 
         onClose();
 
